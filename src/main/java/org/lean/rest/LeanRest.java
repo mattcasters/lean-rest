@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -80,7 +81,7 @@ public class LeanRest {
   public LeanRest() {
     loggingObject = new LoggingObject("Lean Rest");
     log = new LogChannel("Lean Rest Server");
-    renderCache = new HashMap<>();
+    renderCache = new ConcurrentHashMap<>();
     System.out.println("Initializing the LEAN environment.");
     try {
       LeanEnvironment.init();

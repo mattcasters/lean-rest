@@ -3,7 +3,13 @@ package org.lean.rest.resources.requests;
 public class ModifyComponentRequest {
   private String presentationName;
   private String oldComponentName;
+  /** 0-based index into {@code LeanPresentation#getPages()} when {@link #pageRole} is {@code page}. */
   private int logicalPageNumber;
+  /**
+   * Which page list holds the component: {@code page} (default), {@code header}, or {@code
+   * footer}.
+   */
+  private String pageRole;
   private String leanComponentJson;
 
   public ModifyComponentRequest() {}
@@ -60,6 +66,14 @@ public class ModifyComponentRequest {
    */
   public void setLogicalPageNumber(int logicalPageNumber) {
     this.logicalPageNumber = logicalPageNumber;
+  }
+
+  public String getPageRole() {
+    return pageRole;
+  }
+
+  public void setPageRole(String pageRole) {
+    this.pageRole = pageRole;
   }
 
   /**

@@ -130,80 +130,84 @@
         {
           "layout": {
             "top": {
-              "offset": 0,
+              "offset": 117,
               "percentage": 0,
-              "alignment": "DEFAULT"
+              "alignment": "TOP"
             },
             "left": {
-              "offset": 0,
+              "offset": 207,
               "percentage": 0,
-              "alignment": "DEFAULT"
-            },
-            "bottom": {
-              "offset": 0,
-              "percentage": 100,
-              "alignment": "DEFAULT"
-            },
-            "right": {
-              "offset": 0,
-              "percentage": 100,
-              "alignment": "DEFAULT"
+              "alignment": "LEFT"
             }
           },
           "shared": false,
           "component": {
-            "LeanTableComponent": {
-              "border": false,
-              "columnSelection": [
+            "LeanBarChartComponent": {
+              "borderColor": {
+                "b": 0,
+                "r": 0,
+                "g": 0
+              },
+              "showingVerticalTotals": false,
+              "sourceConnectorName": "Sample Data",
+              "showingAxisTicks": true,
+              "pluginId": "LeanBarChartComponent",
+              "dotSize": 6,
+              "showingLegend": false,
+              "showingFactValues": false,
+              "title": "",
+              "facts": [],
+              "showingVerticalLabels": true,
+              "horizontalMargin": 0,
+              "border": true,
+              "showingHorizontalLabels": true,
+              "showingHorizontalTotals": false,
+              "verticalMargin": 0,
+              "widthPercentage": "",
+              "horizontalDimensions": [
                 {
                   "horizontalAlignment": "LEFT",
                   "width": 0,
-                  "headerValue": "Presentation name",
+                  "headerValue": "Colour",
                   "verticalAlignment": "MIDDLE",
-                  "columnName": "name"
-                },
-                {
-                  "horizontalAlignment": "LEFT",
-                  "width": 0,
-                  "headerValue": "Description",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "description"
+                  "columnName": "color"
                 }
               ],
-              "sourceConnectorName": "presentation-list-sorted",
-              "headerFont": {
-                "fontName": "Arial",
-                "fontSize": "12",
-                "bold": true,
-                "italic": false
-              },
-              "pluginId": "LeanTableComponent",
-              "verticalMargin": 2,
               "themeName": "Default",
-              "headerOnEveryPage": false,
-              "backGroundColor": {
-                "b": 255,
-                "r": 255,
-                "g": 255
-              },
-              "evenHeights": true,
-              "background": true,
-              "header": true,
-              "horizontalMargin": 2,
-              "defaultFont": {
-                "fontName": "Arial",
-                "fontSize": "12",
-                "bold": false,
-                "italic": true
-              },
-              "headerBackGroundColor": {
-                "b": 255,
-                "r": 220,
-                "g": 220
-              }
+              "usingZeroBaseline": false,
+              "verticalDimensions": [],
+              "background": false
             }
           },
-          "name": "list-presentations"
+          "name": "Bar Chart"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 150,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 219,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "Hello, world!",
+              "horizontalAlignment": "LEFT",
+              "themeName": "Default",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "Label"
         }
       ],
       "leftMargin": 25,
@@ -218,27 +222,7 @@
   ],
   "parameterMappings": [],
   "defaultThemeName": "Default",
-  "name": "list-presentations",
-  "interactions": [
-    {
-      "method": {
-        "mouseClick": true,
-        "mouseDoubleClick": false
-      },
-      "location": {
-        "itemType": "ComponentItem",
-        "itemCategory": "Cell",
-        "componentName": "list-presentations",
-        "dimensionColumns": [
-          "name"
-        ],
-        "componentPluginId": "LeanTableComponent"
-      },
-      "actions": [
-        {
-          "actionType": "OPEN_PRESENTATION"
-        }
-      ]
-    }
-  ]
+  "name": "aaa",
+  "description": "",
+  "interactions": []
 }

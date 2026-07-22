@@ -1,0 +1,360 @@
+{
+  "themes": [
+    {
+      "shared": false,
+      "backgroundColor": {
+        "b": 255,
+        "r": 255,
+        "g": 255
+      },
+      "borderColor": {
+        "b": 240,
+        "r": 240,
+        "g": 240
+      },
+      "factsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "axisColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "description": "Default test theme scheme",
+      "verticalDimensionsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "titleFont": {
+        "fontName": "Arial",
+        "fontSize": "10",
+        "bold": true,
+        "italic": true
+      },
+      "colors": [
+        {
+          "b": 92,
+          "r": 0,
+          "g": 63
+        },
+        {
+          "b": 124,
+          "r": 47,
+          "g": 75
+        },
+        {
+          "b": 145,
+          "r": 102,
+          "g": 81
+        },
+        {
+          "b": 149,
+          "r": 160,
+          "g": 81
+        },
+        {
+          "b": 135,
+          "r": 212,
+          "g": 80
+        },
+        {
+          "b": 106,
+          "r": 249,
+          "g": 93
+        },
+        {
+          "b": 67,
+          "r": 255,
+          "g": 124
+        },
+        {
+          "b": 0,
+          "r": 255,
+          "g": 166
+        }
+      ],
+      "factsFont": {
+        "fontName": "Hack",
+        "fontSize": "12",
+        "bold": false,
+        "italic": false
+      },
+      "defaultColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "titleColor": {
+        "b": 200,
+        "r": 200,
+        "g": 200
+      },
+      "horizontalDimensionsFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": true,
+        "italic": false
+      },
+      "gridColor": {
+        "b": 200,
+        "r": 200,
+        "g": 200
+      },
+      "name": "Default",
+      "verticalDimensionsFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": true,
+        "italic": false
+      },
+      "horizontalDimensionsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "defaultFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": false,
+        "italic": false
+      }
+    }
+  ],
+  "connectors": [],
+  "pages": [
+    {
+      "components": [
+        {
+          "layout": {
+            "top": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanCrosstabComponent": {
+              "showingVerticalTotals": false,
+              "sourceConnectorName": "test_source.product",
+              "pluginId": "LeanCrosstabComponent",
+              "showingVerticalSubtotals": true,
+              "facts": [
+                {
+                  "headerHorizontalAlignment": "LEFT",
+                  "headerValue": "Average price",
+                  "formatMask": "0.00",
+                  "verticalAggregation": true,
+                  "horizontalAlignment": "RIGHT",
+                  "horizontalAggregation": true,
+                  "width": 0,
+                  "aggregationMethod": "AVERAGE",
+                  "headerVerticalAlignment": "TOP",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "unit_price"
+                }
+              ],
+              "evenHeights": true,
+              "horizontalMargin": 3,
+              "showingHorizontalSubtotals": true,
+              "border": false,
+              "showingHorizontalTotals": false,
+              "verticalMargin": 2,
+              "horizontalDimensions": [
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Category",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "category"
+                }
+              ],
+              "themeName": "Default",
+              "headerOnEveryPage": false,
+              "verticalDimensions": [],
+              "background": false
+            }
+          },
+          "name": "Crosstab"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": -19,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 10,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "${SYSTEM_DATE}",
+              "horizontalAlignment": "LEFT",
+              "themeName": "Default",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "Label"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 71,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 2,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanTableComponent": {
+              "border": true,
+              "borderColor": {
+                "b": 103,
+                "r": 81,
+                "g": 83
+              },
+              "columnSelection": [
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "ID",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_id"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Name",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_id"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Category",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_id"
+                },
+                {
+                  "horizontalAlignment": "RIGHT",
+                  "width": 120,
+                  "headerValue": "Price",
+                  "formatMask": "0.00",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_id"
+                }
+              ],
+              "sourceConnectorName": "test_source.product",
+              "headerFont": {
+                "fontName": "Arial",
+                "bold": true,
+                "italic": false
+              },
+              "pluginId": "LeanTableComponent",
+              "verticalMargin": 2,
+              "themeName": "Default",
+              "gridLineWidth": "",
+              "headerOnEveryPage": true,
+              "backGroundColor": {
+                "b": 247,
+                "r": 237,
+                "g": 239
+              },
+              "evenHeights": true,
+              "background": true,
+              "header": true,
+              "horizontalMargin": 3
+            }
+          },
+          "name": "Table"
+        }
+      ],
+      "leftMargin": 25,
+      "topMargin": 25,
+      "rightMargin": 25,
+      "footer": false,
+      "bottomMargin": 25,
+      "width": 1123,
+      "header": false,
+      "height": 794
+    }
+  ],
+  "parameterMappings": [],
+  "footer": {
+    "components": [
+      {
+        "layout": {
+          "top": {
+            "offset": 0,
+            "percentage": 0,
+            "alignment": "CENTER"
+          },
+          "left": {
+            "offset": 0,
+            "percentage": 0,
+            "alignment": "CENTER"
+          }
+        },
+        "shared": false,
+        "component": {
+          "LeanLabelComponent": {
+            "border": false,
+            "underline": false,
+            "pluginId": "LeanLabelComponent",
+            "label": "Page #${PAGE_NUMBER}",
+            "horizontalAlignment": "LEFT",
+            "themeName": "Default",
+            "background": false,
+            "verticalAlignment": "MIDDLE"
+          }
+        },
+        "name": "Label 2"
+      }
+    ],
+    "leftMargin": 0,
+    "topMargin": 0,
+    "rightMargin": 0,
+    "footer": true,
+    "bottomMargin": 0,
+    "width": 1073,
+    "header": false,
+    "height": 25
+  },
+  "defaultThemeName": "Default",
+  "name": "Postgres products",
+  "description": "",
+  "header": {
+    "components": [],
+    "leftMargin": 0,
+    "topMargin": 0,
+    "rightMargin": 0,
+    "footer": false,
+    "bottomMargin": 0,
+    "width": 1073,
+    "header": true,
+    "height": 25
+  },
+  "interactions": []
+}

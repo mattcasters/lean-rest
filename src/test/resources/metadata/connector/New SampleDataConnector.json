@@ -2,9 +2,10 @@
   "shared": false,
   "connector": {
     "SampleDataConnector": {
+      "sourceConnectorName": "Sample Data",
       "pluginId": "SampleDataConnector",
-      "rowCount": 2000
+      "rowCount": 1000
     }
   },
-  "name": "Sample Data"
+  "name": "New SampleDataConnector"
 }

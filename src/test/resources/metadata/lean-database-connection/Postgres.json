@@ -1,0 +1,9 @@
+{
+  "hostname": "localhost",
+  "password": "Encrypted 2be98afc86aa7f2e4cb79ce10ca97bcce",
+  "databaseName": "test_source",
+  "port": "54320",
+  "name": "Postgres",
+  "databaseTypeCode": "POSTGRESQL",
+  "username": "test"
+}

@@ -2,15 +2,10 @@
 <head>
     <link rel="stylesheet" type="text/css" href="/lean/api/static/lean-rest.css">
     <script src="/lean/api/static/jquery.min.js"></script>
-    <title>%PRESENTATION_NAME% page %PAGE_NUMBER%/%PAGE_COUNT%</title>
+    <title>%PRESENTATION_NAME% (view) page %PAGE_NUMBER%/%PAGE_COUNT%</title>
 </head>
-<body>
-<div id="editSidePanel" class="sidePanel">
-    <div style="margin-left: 5px;margin-right: 5px">
-        <div id="editArea"></div>
-    </div>
-</div>
-
+<body class="lean-mode-view">
+<!-- View mode: read-only canvas. No structural editing. -->
 <canvas
         id="svgCanvas"
         width="100%"
@@ -19,13 +14,15 @@
 <script>
     // These constants are globally replaced in the REST service /lean/api/render/page/
     //
-    const presentationName = '%PRESENTATION_NAME%';
-    const renderId = '%RENDER_ID%';
-    const renderPageNumber = '%PAGE_NUMBER%';
-    const renderPageNumber0 = '%PAGE_NUMBER_0%';
-    const renderPageCount = '%PAGE_COUNT%';
-    const parameterValues = JSON.parse('%PARAMETER_VALUES%');
+    var leanMode = 'view';
+    var presentationName = '%PRESENTATION_NAME%';
+    var renderId = '%RENDER_ID%';
+    var renderPageNumber = '%PAGE_NUMBER%';
+    var renderPageNumber0 = '%PAGE_NUMBER_0%';
+    var renderPageCount = '%PAGE_COUNT%';
+    var parameterValues = JSON.parse('%PARAMETER_VALUES%');
 </script>
 <script src="/lean/api/static/lean-rest.js"></script>
+<script src="/lean/api/static/lean-view.js"></script>
 </body>
 </html>

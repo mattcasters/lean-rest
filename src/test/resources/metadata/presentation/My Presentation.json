@@ -132,78 +132,108 @@
             "top": {
               "offset": 0,
               "percentage": 0,
-              "alignment": "DEFAULT"
+              "alignment": "TOP"
             },
             "left": {
               "offset": 0,
               "percentage": 0,
-              "alignment": "DEFAULT"
+              "alignment": "LEFT"
             },
             "bottom": {
               "offset": 0,
-              "percentage": 100,
-              "alignment": "DEFAULT"
+              "percentage": 0,
+              "alignment": "BOTTOM"
             },
             "right": {
               "offset": 0,
-              "percentage": 100,
-              "alignment": "DEFAULT"
+              "percentage": 0,
+              "alignment": "RIGHT"
             }
           },
           "shared": false,
           "component": {
             "LeanTableComponent": {
-              "border": false,
+              "border": true,
+              "borderColor": {
+                "b": 0,
+                "r": 0,
+                "g": 0
+              },
               "columnSelection": [
+                {
+                  "horizontalAlignment": "RIGHT",
+                  "width": 100,
+                  "headerValue": "ID",
+                  "formatMask": "0000",
+                  "verticalAlignment": "TOP",
+                  "columnName": "id"
+                },
                 {
                   "horizontalAlignment": "LEFT",
                   "width": 0,
-                  "headerValue": "Presentation name",
-                  "verticalAlignment": "MIDDLE",
+                  "headerValue": "Name",
+                  "verticalAlignment": "TOP",
                   "columnName": "name"
                 },
                 {
                   "horizontalAlignment": "LEFT",
                   "width": 0,
-                  "headerValue": "Description",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "description"
+                  "headerValue": "Updated",
+                  "verticalAlignment": "TOP",
+                  "columnName": "updated"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Important?",
+                  "verticalAlignment": "TOP",
+                  "columnName": "important"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Random value",
+                  "verticalAlignment": "TOP",
+                  "columnName": "random"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Colour",
+                  "verticalAlignment": "TOP",
+                  "columnName": "color"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Country",
+                  "verticalAlignment": "TOP",
+                  "columnName": "country"
                 }
               ],
-              "sourceConnectorName": "presentation-list-sorted",
+              "sourceConnectorName": "Sample Data",
               "headerFont": {
                 "fontName": "Arial",
-                "fontSize": "12",
                 "bold": true,
                 "italic": false
               },
               "pluginId": "LeanTableComponent",
-              "verticalMargin": 2,
+              "verticalMargin": 1,
               "themeName": "Default",
-              "headerOnEveryPage": false,
+              "gridLineWidth": "",
+              "headerOnEveryPage": true,
               "backGroundColor": {
-                "b": 255,
+                "b": 250,
                 "r": 255,
-                "g": 255
+                "g": 250
               },
               "evenHeights": true,
               "background": true,
               "header": true,
-              "horizontalMargin": 2,
-              "defaultFont": {
-                "fontName": "Arial",
-                "fontSize": "12",
-                "bold": false,
-                "italic": true
-              },
-              "headerBackGroundColor": {
-                "b": 255,
-                "r": 220,
-                "g": 220
-              }
+              "horizontalMargin": 1
             }
           },
-          "name": "list-presentations"
+          "name": "Table"
         }
       ],
       "leftMargin": 25,
@@ -218,27 +248,7 @@
   ],
   "parameterMappings": [],
   "defaultThemeName": "Default",
-  "name": "list-presentations",
-  "interactions": [
-    {
-      "method": {
-        "mouseClick": true,
-        "mouseDoubleClick": false
-      },
-      "location": {
-        "itemType": "ComponentItem",
-        "itemCategory": "Cell",
-        "componentName": "list-presentations",
-        "dimensionColumns": [
-          "name"
-        ],
-        "componentPluginId": "LeanTableComponent"
-      },
-      "actions": [
-        {
-          "actionType": "OPEN_PRESENTATION"
-        }
-      ]
-    }
-  ]
+  "name": "My Presentation",
+  "description": "",
+  "interactions": []
 }

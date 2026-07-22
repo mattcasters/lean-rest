@@ -21,6 +21,8 @@ import org.lean.core.exception.LeanException;
 import org.lean.presentation.LeanPresentation;
 import org.lean.presentation.component.LeanComponent;
 import org.lean.presentation.connector.LeanConnector;
+import org.lean.presentation.datacontext.IDataContext;
+import org.lean.presentation.datacontext.PresentationDataContext;
 import org.lean.presentation.interaction.LeanInteraction;
 import org.lean.presentation.layout.LeanRenderPage;
 import org.lean.presentation.page.LeanPage;
@@ -202,25 +204,81 @@ public class RenderResource extends BaseResource {
     try {
       IRendering rendering = lookupRendering(request.getRenderId());
       LeanRenderPage page = lookupRenderPage(rendering, request.getPageNumber());
-      List<String> names = page.lookupComponentName(request.getX(), request.getY());
-      if (names.isEmpty()) {
-        throw new LeanException(
-            "Unable to find any components on location ("
-                + request.getX()
-                + ","
-                + request.getY()
-                + ")");
+      // Prefer the top-most Component drawn item at this point (last in drawn order).
+      // lookupComponentName returns all hits from bottom→top; take the last name.
+      String componentName = null;
+      if (page.getDrawnItems() != null) {
+        for (int i = page.getDrawnItems().size() - 1; i >= 0; i--) {
+          DrawnItem item = page.getDrawnItems().get(i);
+          if (item.getType() != DrawnItem.DrawnItemType.Component) {
+            continue;
+          }
+          if (item.getGeometry() != null
+              && item.getGeometry().contains(request.getX(), request.getY())) {
+            componentName = item.getComponentName();
+            break;
+          }
+        }
       }
-      LeanComponent component = page.getPage().findComponent(names.get(0));
+      if (componentName == null) {
+        List<String> names = page.lookupComponentName(request.getX(), request.getY());
+        if (!names.isEmpty()) {
+          componentName = names.get(names.size() - 1);
+        }
+      }
+      if (componentName == null) {
+        // Empty click (no component under the cursor) — not an error
+        return Response.ok("{\"empty\":true}")
+            .type(MediaType.APPLICATION_JSON)
+            .encoding("UTF-8")
+            .build();
+      }
+      LeanPresentation presentation = rendering.getPresentation();
 
-      // Serialize this to JSON...
+      // Drawn names may be synthetic (Group-group#1:Composite-child(Label)); resolve to template
+      ComponentLookup.Found found =
+          ComponentLookup.find(presentation, page.getPage(), componentName);
+      if (found == null) {
+        // Drawn item name could not be resolved — treat as empty click for the editor
+        return Response.ok("{\"empty\":true}")
+            .type(MediaType.APPLICATION_JSON)
+            .encoding("UTF-8")
+            .build();
+      }
+
+      // Serialize component to Hop metadata JSON...
       //
       JsonMetadataParser<LeanComponent> parser =
           new JsonMetadataParser<>(LeanComponent.class, leanRest.getMetadataProvider());
-      JSONObject jsonObject = parser.getJsonObject(component);
+      JSONObject componentJson = parser.getJsonObject(found.component);
+
+      JSONObject wrapper = new JSONObject();
+      wrapper.put("logicalPageNumber", found.logicalPageNumber);
+      wrapper.put("pageRole", found.pageRole);
+      wrapper.put("component", componentJson);
+      // Help the client label nested edits
+      wrapper.put("drawnName", componentName);
+      wrapper.put("metadataName", found.component.getName());
+      if (found.parentComponent != null) {
+        wrapper.put("nested", true);
+        wrapper.put("parentName", found.parentComponent.getName());
+      } else {
+        wrapper.put("nested", false);
+      }
+
+      // Attach layout/render error from the current render page when present
+      String metaName = found.component.getName();
+      String layoutError = lookupLayoutError(page, metaName, componentName, false);
+      String layoutErrorDetail = lookupLayoutError(page, metaName, componentName, true);
+      if (layoutError != null) {
+        wrapper.put("layoutError", layoutError);
+      }
+      if (layoutErrorDetail != null) {
+        wrapper.put("layoutErrorDetail", layoutErrorDetail);
+      }
 
       return Response.ok()
-          .entity(jsonObject.toJSONString())
+          .entity(wrapper.toJSONString())
           .encoding("UTF-8")
           .type(MediaType.APPLICATION_JSON)
           .build();
@@ -228,13 +286,71 @@ public class RenderResource extends BaseResource {
       // Don't log on the server, it can be tedious to see all the failed lookups.
       //
       String errorMessage =
-          "Unexpected error retrieving the JSON of a component actions for request: " + request;
+          "Unexpected error retrieving the JSON of a component for request: " + request;
       return Response.serverError()
           .status(Response.Status.INTERNAL_SERVER_ERROR)
           .entity(errorMessage + "\n" + Const.getSimpleStackTrace(e))
           .type(MediaType.TEXT_PLAIN)
           .build();
     }
+  }
+
+  /**
+   * Look up a short or detailed layout error for a component on a render page (by metadata or drawn
+   * name).
+   */
+  private static String lookupLayoutError(
+      LeanRenderPage page, String metadataName, String drawnName, boolean detail) {
+    if (page == null) {
+      return null;
+    }
+    java.util.Map<String, String> map =
+        detail ? page.getComponentLayoutErrorDetails() : page.getComponentLayoutErrors();
+    if (map == null || map.isEmpty()) {
+      // Fall back to layout-result data maps (body components)
+      if (page.getLayoutResults() != null) {
+        for (org.lean.presentation.LeanComponentLayoutResult lr : page.getLayoutResults()) {
+          if (lr == null || lr.getComponent() == null || lr.getDataMap() == null) {
+            continue;
+          }
+          String n = lr.getComponent().getName();
+          if (n == null) {
+            continue;
+          }
+          if (!n.equals(metadataName) && !n.equals(drawnName)) {
+            continue;
+          }
+          Object key =
+              detail
+                  ? lr.getDataMap().get(LeanPresentation.DATA_LAYOUT_ERROR_DETAIL)
+                  : lr.getDataMap().get(LeanPresentation.DATA_LAYOUT_ERROR);
+          if (key == null && detail) {
+            key = lr.getDataMap().get(LeanPresentation.DATA_LAYOUT_ERROR);
+          }
+          if (key != null) {
+            return String.valueOf(key);
+          }
+        }
+      }
+      return null;
+    }
+    if (metadataName != null && map.containsKey(metadataName)) {
+      return map.get(metadataName);
+    }
+    if (drawnName != null && map.containsKey(drawnName)) {
+      return map.get(drawnName);
+    }
+    return null;
+  }
+
+  /**
+   * Locate a component by name: prefer the render page's body page, then other body pages, then
+   * presentation header/footer (including nested group/composite templates).
+   */
+  private static ComponentLookup.Found findComponentOnPresentation(
+      LeanPresentation presentation, LeanPage renderLeanPage, String componentName)
+      throws LeanException {
+    return ComponentLookup.find(presentation, renderLeanPage, componentName);
   }
 
   /**
@@ -246,22 +362,203 @@ public class RenderResource extends BaseResource {
    */
   @GET
   @Path("/info/components/{renderId}/{pageNumber}")
-  public Response getPageCount(
+  public Response getPageComponentNames(
       @PathParam("renderId") String renderId, @PathParam("pageNumber") int pageNumber) {
     try {
       IRendering rendering = lookupRendering(renderId);
       LeanRenderPage renderPage = lookupRenderPage(rendering, pageNumber);
       LeanPage leanPage = renderPage.getPage();
+      LeanPresentation presentation = rendering.getPresentation();
 
       List<String> names = new ArrayList<>();
-      for (LeanComponent component : leanPage.getComponents()) {
-        names.add(component.getName());
+      if (leanPage != null && leanPage.getComponents() != null) {
+        for (LeanComponent component : leanPage.getComponents()) {
+          names.add(component.getName());
+        }
       }
-      return Response.ok().entity(names).build();
+      // Header/footer components are drawn on every render page but stored on the presentation
+      if (presentation != null) {
+        if (presentation.getHeader() != null && presentation.getHeader().getComponents() != null) {
+          for (LeanComponent component : presentation.getHeader().getComponents()) {
+            if (component.getName() != null && !names.contains(component.getName())) {
+              names.add(component.getName());
+            }
+          }
+        }
+        if (presentation.getFooter() != null && presentation.getFooter().getComponents() != null) {
+          for (LeanComponent component : presentation.getFooter().getComponents()) {
+            if (component.getName() != null && !names.contains(component.getName())) {
+              names.add(component.getName());
+            }
+          }
+        }
+      }
+      String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(names);
+      return Response.ok(json).type(MediaType.APPLICATION_JSON_TYPE).encoding("UTF-8").build();
     } catch (Exception e) {
       String errorMessage =
           "Unexpected error getting the components for presentation rendering ID " + renderId;
       return getServerError(errorMessage, e);
+    }
+  }
+
+  /**
+   * Component-level drawn geometries for the WYSIWYG editor overlay (hover / selection borders).
+   *
+   * <p>Built from {@link DrawnItem}s on the requested <b>render page</b> (multi-page tables have a
+   * different part geometry per page). Prefer {@link DrawnItem.DrawnItemType#Component} bounds; if
+   * those are missing or zero-sized, fall back to the union of {@code ComponentItem} ink (cells,
+   * labels, series). Also resolves {@code pageRole} (page / header / footer) for edit routing.
+   */
+  @GET
+  @Path("/info/component-geometries/{renderId}/{pageNumber}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response getComponentGeometries(
+      @PathParam("renderId") String renderId, @PathParam("pageNumber") int pageNumber) {
+    try {
+      IRendering rendering = lookupRendering(renderId);
+      LeanRenderPage renderPage = lookupRenderPage(rendering, pageNumber);
+      LeanPresentation presentation = rendering.getPresentation();
+
+      // Accumulate per-component component bounds and component-item ink on this render page
+      java.util.Map<String, org.lean.core.LeanGeometry> componentBounds =
+          new java.util.LinkedHashMap<>();
+      java.util.Map<String, org.lean.core.LeanGeometry> itemUnion = new java.util.LinkedHashMap<>();
+      java.util.Map<String, String> pluginByName = new java.util.LinkedHashMap<>();
+
+      if (renderPage.getDrawnItems() != null) {
+        for (DrawnItem item : renderPage.getDrawnItems()) {
+          if (item.getGeometry() == null || item.getComponentName() == null) {
+            continue;
+          }
+          String name = item.getComponentName();
+          if (item.getComponentPluginId() != null) {
+            pluginByName.putIfAbsent(name, item.getComponentPluginId());
+          }
+          if (item.getType() == DrawnItem.DrawnItemType.Component) {
+            // Last Component item for this name on this page (should be one after layout fix)
+            componentBounds.put(name, item.getGeometry());
+          } else if (item.getType() == DrawnItem.DrawnItemType.ComponentItem) {
+            itemUnion.put(name, unionGeometry(itemUnion.get(name), item.getGeometry()));
+          }
+        }
+      }
+
+      List<java.util.Map<String, Object>> rows = new ArrayList<>();
+      java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+      names.addAll(componentBounds.keySet());
+      names.addAll(itemUnion.keySet());
+
+      for (String name : names) {
+        org.lean.core.LeanGeometry geo = componentBounds.get(name);
+        if (geo == null || geo.getWidth() <= 0 || geo.getHeight() <= 0) {
+          org.lean.core.LeanGeometry fromItems = itemUnion.get(name);
+          if (fromItems != null
+              && fromItems.getWidth() > 0
+              && fromItems.getHeight() > 0) {
+            geo = fromItems;
+          }
+        }
+        if (geo == null) {
+          continue;
+        }
+        // Skip zero-area highlights (unusable for hover)
+        if (geo.getWidth() <= 0 && geo.getHeight() <= 0) {
+          continue;
+        }
+
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("componentName", name);
+        row.put("pluginId", pluginByName.getOrDefault(name, ""));
+        java.util.Map<String, Object> geoMap = new java.util.LinkedHashMap<>();
+        geoMap.put("x", geo.getX());
+        geoMap.put("y", geo.getY());
+        geoMap.put("width", Math.max(0, geo.getWidth()));
+        geoMap.put("height", Math.max(0, geo.getHeight()));
+        row.put("geometry", geoMap);
+
+        ComponentLookup.Found found =
+            findComponentOnPresentation(presentation, renderPage.getPage(), name);
+        if (found != null) {
+          row.put("pageRole", found.pageRole);
+          row.put("logicalPageNumber", found.logicalPageNumber);
+          row.put("metadataName", found.component.getName());
+        } else {
+          row.put("pageRole", "page");
+          row.put("logicalPageNumber", -1);
+        }
+
+        // Surface layout/render failures for the property panel / hover diagnostics
+        String errorName =
+            found != null && found.component != null && found.component.getName() != null
+                ? found.component.getName()
+                : name;
+        String layoutError = lookupLayoutError(renderPage, errorName, name, false);
+        String layoutErrorDetail = lookupLayoutError(renderPage, errorName, name, true);
+        if (layoutError != null) {
+          row.put("layoutError", layoutError);
+        }
+        if (layoutErrorDetail != null) {
+          row.put("layoutErrorDetail", layoutErrorDetail);
+        }
+        rows.add(row);
+      }
+
+      String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(rows);
+      return Response.ok(json).type(MediaType.APPLICATION_JSON_TYPE).encoding("UTF-8").build();
+    } catch (Exception e) {
+      return getServerError(
+          "Error listing component geometries for render " + renderId + " page " + pageNumber, e);
+    }
+  }
+
+  /** Axis-aligned union of two geometries (null-safe). */
+  private static org.lean.core.LeanGeometry unionGeometry(
+      org.lean.core.LeanGeometry a, org.lean.core.LeanGeometry b) {
+    if (a == null) {
+      return b == null ? null : new org.lean.core.LeanGeometry(b);
+    }
+    if (b == null) {
+      return new org.lean.core.LeanGeometry(a);
+    }
+    int x1 = Math.min(a.getX(), b.getX());
+    int y1 = Math.min(a.getY(), b.getY());
+    int x2 = Math.max(a.getX() + a.getWidth(), b.getX() + b.getWidth());
+    int y2 = Math.max(a.getY() + a.getHeight(), b.getY() + b.getHeight());
+    return new org.lean.core.LeanGeometry(x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1));
+  }
+
+  /**
+   * Connector names available to a presentation rendering: presentation-local first, then shared
+   * metadata connectors.
+   */
+  @GET
+  @Path("/info/connectors/{renderId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response getPresentationConnectorNames(@PathParam("renderId") String renderId) {
+    try {
+      IRendering rendering = lookupRendering(renderId);
+      List<String> names = new ArrayList<>();
+      if (rendering.getPresentation() != null
+          && rendering.getPresentation().getConnectors() != null) {
+        for (LeanConnector c : rendering.getPresentation().getConnectors()) {
+          if (c.getName() != null && !names.contains(c.getName())) {
+            names.add(c.getName());
+          }
+        }
+      }
+      IHopMetadataProvider provider = leanRest.getMetadataProvider();
+      IHopMetadataSerializer<LeanConnector> serializer =
+          provider.getSerializer(LeanConnector.class);
+      for (String n : serializer.listObjectNames()) {
+        if (!names.contains(n)) {
+          names.add(n);
+        }
+      }
+      String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(names);
+      return Response.ok(json).type(MediaType.APPLICATION_JSON_TYPE).encoding("UTF-8").build();
+    } catch (Exception e) {
+      return getServerError("Error listing connectors for rendering " + renderId, e);
     }
   }
 
@@ -277,20 +574,53 @@ public class RenderResource extends BaseResource {
   @Produces(MediaType.APPLICATION_JSON)
   public Response describeConnectorOutput(ConnectorDescriptionRequest request) {
     try {
-      IRendering rendering = lookupRendering(request.getRenderId());
       IHopMetadataProvider provider = leanRest.getMetadataProvider();
       IHopMetadataSerializer<LeanConnector> serializer =
           provider.getSerializer(LeanConnector.class);
-      LeanConnector connector = serializer.load(request.getConnectorName());
-      if (connector == null) {
-        throw new LeanException(
-            "Connector '" + request.getConnectorName() + "' couldn't be found in the metadata");
+
+      IRendering rendering = null;
+      if (request.getRenderId() != null && !request.getRenderId().isBlank()) {
+        rendering = leanRest.getRendering(request.getRenderId());
       }
 
-      // Describe the output
-      //
-      IRowMeta rowMeta = connector.describeOutput(rendering.getLayoutResults().getDataContext());
-      return Response.ok(new RowMetaResponse(rowMeta).getValueMetaList()).build();
+      LeanConnector connector = null;
+      IDataContext dataContext = null;
+
+      if (rendering != null) {
+        if (rendering.getPresentation() != null) {
+          connector = rendering.getPresentation().getConnector(request.getConnectorName());
+        }
+        if (rendering.getLayoutResults() != null) {
+          dataContext = rendering.getLayoutResults().getDataContext();
+        }
+      }
+
+      if (connector == null) {
+        connector = serializer.load(request.getConnectorName());
+      }
+      if (connector == null) {
+        throw new LeanException(
+            "Connector '"
+                + request.getConnectorName()
+                + "' couldn't be found in the presentation or metadata");
+      }
+
+      // Fallback when renderId is missing/expired: describe from metadata alone
+      if (dataContext == null) {
+        LeanPresentation presentation =
+            rendering != null ? rendering.getPresentation() : null;
+        if (presentation == null) {
+          presentation = new LeanPresentation();
+          presentation.setName("_describe");
+        }
+        dataContext = new PresentationDataContext(presentation, provider);
+      }
+
+      IRowMeta rowMeta = connector.describeOutput(dataContext);
+      String json =
+          new com.fasterxml.jackson.databind.ObjectMapper()
+              .writeValueAsString(new RowMetaResponse(rowMeta).getValueMetaList());
+      return Response.ok(json).type(MediaType.APPLICATION_JSON_TYPE).encoding("UTF-8").build();
     } catch (Exception e) {
       return getServerError(
           "Error getting row metadata from connector " + request.getConnectorName(), e);

@@ -92,6 +92,12 @@
       <artifactId>jackson-module-jakarta-xmlbind-annotations</artifactId>
       <version>${jackson.version}</version>
     </dependency>
+    <!-- Jersey's Jackson provider still references the classic JAXB introspector -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-jaxb-annotations</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.apache.hop</groupId>
@@ -112,6 +118,18 @@
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <version>2.2.224</version>
+    </dependency>
+
+    <!-- PostgreSQL: Hop DB type plugin + JDBC driver (packaged in WAR for connection tests) -->
+    <dependency>
+      <groupId>org.apache.hop</groupId>
+      <artifactId>hop-databases-postgresql</artifactId>
+      <version>${hop.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.11</version>
     </dependency>
 
     <dependency>

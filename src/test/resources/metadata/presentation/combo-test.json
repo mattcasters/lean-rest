@@ -151,8 +151,7 @@
               "showingVerticalSubtotals": false,
               "facts": [
                 {
-                  "horizontalAggregationHeader": "Total Sum",
-                  "headerHorizontalAlignment": "CENTER",
+                  "headerHorizontalAlignment": "LEFT",
                   "headerValue": "Sum",
                   "formatMask": "0.000",
                   "verticalAggregation": false,
@@ -160,13 +159,12 @@
                   "horizontalAggregation": true,
                   "width": 0,
                   "aggregationMethod": "SUM",
-                  "headerVerticalAlignment": "MIDDLE",
+                  "headerVerticalAlignment": "TOP",
                   "verticalAlignment": "MIDDLE",
                   "columnName": "random"
                 },
                 {
-                  "horizontalAggregationHeader": "Total Count",
-                  "headerHorizontalAlignment": "CENTER",
+                  "headerHorizontalAlignment": "LEFT",
                   "headerValue": "Count",
                   "formatMask": "0",
                   "verticalAggregation": false,
@@ -174,13 +172,13 @@
                   "horizontalAggregation": true,
                   "width": 0,
                   "aggregationMethod": "COUNT",
-                  "headerVerticalAlignment": "MIDDLE",
+                  "headerVerticalAlignment": "TOP",
                   "verticalAlignment": "MIDDLE",
                   "columnName": "name"
                 }
               ],
               "evenHeights": true,
-              "horizontalMargin": 3,
+              "horizontalMargin": 2,
               "showingHorizontalSubtotals": false,
               "border": false,
               "showingHorizontalTotals": true,
@@ -329,17 +327,21 @@
           "shared": false,
           "component": {
             "LeanLineChartComponent": {
+              "borderColor": {
+                "b": 0,
+                "r": 0,
+                "g": 0
+              },
               "showingVerticalTotals": false,
               "sourceConnectorName": "Sample Data",
               "showingAxisTicks": false,
               "pluginId": "LeanLineChartComponent",
-              "dotSize": 0,
+              "dotSize": 1,
               "showingLegend": false,
               "title": "Very detailed",
               "facts": [
                 {
-                  "horizontalAggregationHeader": "Total Sum",
-                  "headerHorizontalAlignment": "CENTER",
+                  "headerHorizontalAlignment": "LEFT",
                   "headerValue": "Sum",
                   "formatMask": "0.00",
                   "verticalAggregation": false,
@@ -347,7 +349,7 @@
                   "horizontalAggregation": true,
                   "width": 0,
                   "aggregationMethod": "SUM",
-                  "headerVerticalAlignment": "MIDDLE",
+                  "headerVerticalAlignment": "TOP",
                   "verticalAlignment": "MIDDLE",
                   "columnName": "random"
                 }
@@ -388,6 +390,7 @@
               "background": false
             }
           },
+          "rotation": "0",
           "name": "TrendChartDetailed"
         },
         {
@@ -425,7 +428,6 @@
         }
       ],
       "leftMargin": 25,
-      "pageNumber": 1,
       "topMargin": 25,
       "rightMargin": 25,
       "footer": false,
@@ -435,6 +437,7 @@
       "height": 794
     }
   ],
+  "parameterMappings": [],
   "footer": {
     "components": [
       {
@@ -458,6 +461,12 @@
             "pluginId": "LeanLabelComponent",
             "label": "Page #${PAGE_NUMBER}",
             "horizontalAlignment": "LEFT",
+            "themeName": "Default",
+            "defaultColor": {
+              "b": 0,
+              "r": 245,
+              "g": 0
+            },
             "background": false,
             "verticalAlignment": "TOP"
           }
@@ -481,11 +490,23 @@
         "component": {
           "LeanLabelComponent": {
             "border": false,
-            "underline": false,
+            "underline": true,
             "pluginId": "LeanLabelComponent",
             "label": "${SYSTEM_DATE}",
             "horizontalAlignment": "LEFT",
-            "background": false,
+            "themeName": "Default",
+            "backGroundColor": {
+              "b": 201,
+              "r": 228,
+              "g": 201
+            },
+            "background": true,
+            "defaultFont": {
+              "fontName": "Arial",
+              "fontSize": "12",
+              "bold": true,
+              "italic": true
+            },
             "verticalAlignment": "TOP"
           }
         },
@@ -513,6 +534,12 @@
         "component": {
           "LeanSvgComponent": {
             "border": true,
+            "borderColor": {
+              "b": 0,
+              "r": 0,
+              "g": 0
+            },
+            "themeName": "Default",
             "filename": "lean-logo.svg",
             "scaleType": "MIN",
             "background": false,
@@ -523,7 +550,6 @@
       }
     ],
     "leftMargin": 0,
-    "pageNumber": -2,
     "topMargin": 0,
     "rightMargin": 0,
     "footer": true,
@@ -556,8 +582,9 @@
             "border": false,
             "underline": false,
             "pluginId": "LeanLabelComponent",
-            "label": "Layout test with charts basing position off crosstab",
+            "label": "Header text at the center!!",
             "horizontalAlignment": "LEFT",
+            "themeName": "Default",
             "background": false,
             "verticalAlignment": "TOP"
           }
@@ -581,10 +608,11 @@
         "component": {
           "LeanLabelComponent": {
             "border": false,
-            "underline": false,
+            "underline": true,
             "pluginId": "LeanLabelComponent",
             "label": "${PRESENTATION_NAME}",
             "horizontalAlignment": "LEFT",
+            "themeName": "Default",
             "background": false,
             "verticalAlignment": "TOP"
           }
@@ -593,7 +621,6 @@
       }
     ],
     "leftMargin": 0,
-    "pageNumber": -1,
     "topMargin": 0,
     "rightMargin": 0,
     "footer": false,

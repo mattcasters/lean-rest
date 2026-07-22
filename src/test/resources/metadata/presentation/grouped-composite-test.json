@@ -206,7 +206,7 @@
                               "r": 240,
                               "g": 240
                             },
-                            "underline": false,
+                            "underline": true,
                             "pluginId": "LeanLabelComponent",
                             "label": "Country: ${country}",
                             "horizontalAlignment": "CENTER",
@@ -214,11 +214,6 @@
                               "b": 194,
                               "r": 0,
                               "g": 140
-                            },
-                            "backGroundColor": {
-                              "b": 200,
-                              "r": 200,
-                              "g": 200
                             },
                             "background": false,
                             "defaultFont": {
@@ -333,7 +328,6 @@
         }
       ],
       "leftMargin": 25,
-      "pageNumber": 1,
       "topMargin": 25,
       "rightMargin": 25,
       "footer": false,
@@ -343,6 +337,7 @@
       "height": 794
     }
   ],
+  "parameterMappings": [],
   "footer": {
     "components": [
       {
@@ -431,7 +426,6 @@
       }
     ],
     "leftMargin": 0,
-    "pageNumber": -2,
     "topMargin": 0,
     "rightMargin": 0,
     "footer": true,
@@ -501,7 +495,6 @@
       }
     ],
     "leftMargin": 0,
-    "pageNumber": -1,
     "topMargin": 0,
     "rightMargin": 0,
     "footer": false,

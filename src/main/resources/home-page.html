@@ -1,43 +1,145 @@
-<html>
+<html lang="en">
 <head>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js">
-    </script>
+    <meta charset="utf-8">
+    <title>Lean — presentations</title>
+    <link rel="stylesheet" type="text/css" href="/lean/api/static/lean-rest.css">
+    <script src="/lean/api/static/jquery.min.js"></script>
 </head>
-<title>Welcome to the Lean cloud</title>
-<body>
+<body class="home-page">
+<header class="home-header">
+    <h1>Lean presentations</h1>
+    <p class="home-sub">View a rendered presentation, or open the WYSIWYG editor.</p>
+</header>
+
+<div class="home-actions">
+    <button type="button" id="btnNewPresentation" class="home-btn home-btn-primary">New presentation</button>
+    <button type="button" id="btnDemo" class="home-btn">Demo (list-presentations)</button>
+</div>
+
+<table class="home-table" id="presentationTable">
+    <thead>
+    <tr>
+        <th>Name</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody id="presentationTableBody">
+    <tr><td colspan="2">Loading…</td></tr>
+    </tbody>
+</table>
+
 <script>
     const API_BASE = '/lean/api/';
 
     $(document).ready(function () {
-        // All this does is open the presentations list.
-        // It will become a more complicated dashboard later.
-        //
-        openPresentation("list-presentations");
+        loadPresentationList();
+        $('#btnDemo').on('click', function () {
+            openView('list-presentations');
+        });
+        $('#btnNewPresentation').on('click', function () {
+            createNewPresentation();
+        });
     });
 
-    // Open the presentation with the given name
-    //
-    function openPresentation(presentationName) {
-        let postData = { };
-        postData.presentationName = presentationName;
-        postData.parameters = [];
-
-        let stringData = JSON.stringify(postData);
-        // alert("Posting presentation postData: " + stringData);
-
+    function loadPresentationList() {
         $.ajax({
-            type: "POST",
-            url: API_BASE + "render/presentation/",
-            data: stringData,
-            dataType: 'text', // return type
-            contentType: "application/json; charset=utf-8", // posting
-            success: function (data, status) {
-                let renderId = data;
-                window.open(API_BASE + "render/page/" + renderId + "/HTML/0/", "_self");
+            url: API_BASE + 'metadata/list/presentation/',
+            type: 'GET',
+            dataType: 'json',
+            success: function (names) {
+                let body = $('#presentationTableBody');
+                body.empty();
+                if (!names || names.length === 0) {
+                    body.append('<tr><td colspan="2">No presentations found.</td></tr>');
+                    return;
+                }
+                names.sort(function (a, b) {
+                    return String(a).localeCompare(String(b));
+                });
+                for (let i = 0; i < names.length; i++) {
+                    let name = names[i];
+                    let row = $('<tr></tr>');
+                    row.append($('<td></td>').text(name));
+                    let actions = $('<td class="home-row-actions"></td>');
+                    actions.append(
+                        $('<button type="button" class="home-btn home-btn-small">View</button>')
+                            .on('click', function () {
+                                openView(name);
+                            })
+                    );
+                    actions.append(
+                        $('<button type="button" class="home-btn home-btn-small home-btn-primary">Edit</button>')
+                            .on('click', function () {
+                                openEdit(name);
+                            })
+                    );
+                    row.append(actions);
+                    body.append(row);
+                }
+            },
+            error: function (xhr) {
+                $('#presentationTableBody').html(
+                    '<tr><td colspan="2">Failed to list presentations: '
+                    + $('<div>').text(xhr.responseText || xhr.status).html() + '</td></tr>'
+                );
+            }
+        });
+    }
+
+    function openView(presentationName) {
+        let postData = {
+            presentationName: presentationName,
+            parameters: [],
+            reload: true
+        };
+        $.ajax({
+            type: 'POST',
+            url: API_BASE + 'render/presentation/',
+            data: JSON.stringify(postData),
+            dataType: 'text',
+            contentType: 'application/json; charset=utf-8',
+            success: function (renderId) {
+                window.open(API_BASE + 'render/page/' + renderId + '/HTML/0/', '_self');
             },
             error: function (request, status, error) {
-                alert("Error rendering presentation, status: " + status + " : " +
-                    request.responseText + ", error: " + error);
+                alert('Error rendering presentation: ' + status + ' : ' + request.responseText);
+            }
+        });
+    }
+
+    function openEdit(presentationName) {
+        window.open(API_BASE + 'edit/presentation/' + encodeURIComponent(presentationName) + '/', '_self');
+    }
+
+    function createNewPresentation() {
+        let name = prompt('Name for the new presentation:', 'My Presentation');
+        if (name === null) {
+            return;
+        }
+        name = String(name).trim();
+        if (!name) {
+            alert('Name is required');
+            return;
+        }
+        // Server builds a proper LeanPresentation (Jackson cannot bind IHopMetadata)
+        $.ajax({
+            url: API_BASE + 'edit/presentation/create/',
+            type: 'POST',
+            contentType: 'application/json; charset=utf-8',
+            data: JSON.stringify({
+                name: name,
+                description: '',
+                width: 1123,
+                height: 794,
+                margin: 25,
+                defaultThemeName: 'Default'
+            }),
+            dataType: 'text',
+            success: function (savedName) {
+                openEdit(savedName || name);
+            },
+            error: function (xhr) {
+                alert('Could not create presentation: ' + (xhr.responseText || xhr.status));
             }
         });
     }

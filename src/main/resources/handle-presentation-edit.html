@@ -1,0 +1,75 @@
+<html xmlns="http://www.w3.org/1999/html" lang="en">
+<head>
+    <link rel="stylesheet" type="text/css" href="/lean/api/static/lean-rest.css">
+    <script src="/lean/api/static/jquery.min.js"></script>
+    <title>%PRESENTATION_NAME% (edit) page %PAGE_NUMBER%/%PAGE_COUNT%</title>
+</head>
+<body class="lean-mode-edit">
+<div class="editor-layout">
+    <aside class="editor-left-rail" id="editorLeftRail">
+        <section class="editor-palette" id="editorPalette">
+            <h3>Components</h3>
+            <p class="editor-hint">Drag a type onto the page, or use +.</p>
+            <div id="componentPalette" class="component-palette"></div>
+        </section>
+        <section class="editor-component-list-section">
+            <h3>On this page</h3>
+            <div class="editor-list-toolbar" id="componentListToolbar">
+                <button type="button" id="btnComponentAdd" title="Add component" disabled>+</button>
+                <button type="button" id="btnComponentEdit" title="Edit selected" disabled>Edit</button>
+                <button type="button" id="btnComponentDelete" title="Delete selected" disabled>Del</button>
+            </div>
+            <ul id="pageComponentList" class="page-component-list"></ul>
+            <p class="editor-hint" id="pageComponentListEmpty">No components yet.</p>
+        </section>
+        <section class="editor-header-footer-section" id="editorHeaderFooterSection">
+            <h3>Header / Footer</h3>
+            <div class="hf-row">
+                <input type="checkbox" id="chkHeader" title="Enable header">
+                <a href="#" id="linkHeader" class="hf-link" title="Edit header height">Header</a>
+                <span id="headerHeightLabel" class="hf-height editor-hint"></span>
+            </div>
+            <div class="hf-row">
+                <input type="checkbox" id="chkFooter" title="Enable footer">
+                <a href="#" id="linkFooter" class="hf-link" title="Edit footer height">Footer</a>
+                <span id="footerHeightLabel" class="hf-height editor-hint"></span>
+            </div>
+        </section>
+    </aside>
+    <main class="editor-main">
+        <canvas id="svgCanvas" width="100%" height="100%"></canvas>
+    </main>
+</div>
+
+<div id="editSidePanel" class="sidePanel property-side-panel">
+    <div class="property-editor-shell">
+        <div class="property-form-column">
+            <div id="editArea" class="property-form-area"></div>
+        </div>
+        <div class="property-preview-column" id="propertyPreviewColumn" hidden>
+            <div class="property-preview-header">Component preview</div>
+            <div class="property-preview-frame" id="componentPreviewFrame">
+                <img id="componentPreviewImg" class="property-preview-img" alt="Component preview">
+                <p class="property-preview-empty" id="componentPreviewEmpty">No preview</p>
+            </div>
+            <p class="property-preview-meta" id="componentPreviewMeta"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Globally replaced by the REST service when opening the editor
+    //
+    // var (not const) so soft re-render can update renderId / page counts in-place
+    var leanMode = 'edit';
+    var presentationName = '%PRESENTATION_NAME%';
+    var renderId = '%RENDER_ID%';
+    var renderPageNumber = '%PAGE_NUMBER%';
+    var renderPageNumber0 = '%PAGE_NUMBER_0%';
+    var renderPageCount = '%PAGE_COUNT%';
+    var parameterValues = JSON.parse('%PARAMETER_VALUES%');
+</script>
+<script src="/lean/api/static/lean-rest.js"></script>
+<script src="/lean/api/static/lean-edit.js"></script>
+</body>
+</html>
