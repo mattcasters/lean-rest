@@ -1,29 +1,39 @@
 package org.lean.rest.resources;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.SecurityContext;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hop.core.Const;
 import org.apache.hop.core.exception.HopException;
+import org.apache.hop.core.logging.ILogChannel;
 import org.apache.hop.metadata.api.HopMetadata;
 import org.apache.hop.metadata.api.IHopMetadata;
 import org.apache.hop.metadata.api.IHopMetadataProvider;
 import org.apache.hop.metadata.api.IHopMetadataSerializer;
+import org.apache.hop.metadata.serializer.json.JsonMetadataParser;
+import org.lean.core.exception.LeanException;
 import org.lean.presentation.LeanPresentation;
-import org.lean.rest.LeanUtil;
+import org.lean.presentation.component.LeanComponent;
+import org.lean.presentation.page.LeanPage;
+import org.lean.rest.LeanRest;
+import org.lean.rest.resources.requests.ModifyComponentRequest;
 import org.lean.rest.resources.responses.PresentationResponse;
 
-@Path("metadata/")
-public class MetadataResource {
+@Path("/metadata")
+public class MetadataResource extends BaseResource {
 
-  private final LeanUtil leanUtil = LeanUtil.getInstance();
+  private final LeanRest leanRest = LeanRest.getInstance();
 
   /**
    * List all the type keys
@@ -33,9 +43,9 @@ public class MetadataResource {
   @GET
   @Path("/types")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response getTypes() {
+  public Response getTypes(@Context SecurityContext securityContext) {
     List<String> types = new ArrayList<>();
-    IHopMetadataProvider provider = leanUtil.getMetadataProvider();
+    IHopMetadataProvider provider = leanRest.getMetadataProvider();
     List<Class<IHopMetadata>> metadataClasses = provider.getMetadataClasses();
     for (Class<IHopMetadata> metadataClass : metadataClasses) {
       HopMetadata metadata = metadataClass.getAnnotation(HopMetadata.class);
@@ -55,7 +65,7 @@ public class MetadataResource {
   @Path("/list/{key}/")
   @Produces(MediaType.APPLICATION_JSON)
   public Response listNames(@PathParam("key") String key) throws HopException {
-    IHopMetadataProvider provider = leanUtil.getMetadataProvider();
+    IHopMetadataProvider provider = leanRest.getMetadataProvider();
     Class<IHopMetadata> metadataClass = provider.getMetadataClassForKey(key);
     IHopMetadataSerializer<IHopMetadata> serializer = provider.getSerializer(metadataClass);
     return Response.ok(serializer.listObjectNames()).build();
@@ -74,7 +84,7 @@ public class MetadataResource {
   @Produces(MediaType.APPLICATION_JSON)
   public Response getElement(@PathParam("key") String key, @PathParam("name") String name)
       throws HopException {
-    IHopMetadataProvider provider = leanUtil.getMetadataProvider();
+    IHopMetadataProvider provider = leanRest.getMetadataProvider();
     Class<IHopMetadata> metadataClass = provider.getMetadataClassForKey(key);
     IHopMetadataSerializer<IHopMetadata> serializer = provider.getSerializer(metadataClass);
     IHopMetadata metadata = serializer.load(name);
@@ -94,7 +104,7 @@ public class MetadataResource {
   @Produces(MediaType.APPLICATION_JSON)
   public Response saveElement(@PathParam("key") String key, IHopMetadata metadata)
       throws HopException {
-    IHopMetadataProvider provider = leanUtil.getMetadataProvider();
+    IHopMetadataProvider provider = leanRest.getMetadataProvider();
     Class<IHopMetadata> metadataClass = provider.getMetadataClassForKey(key);
     IHopMetadataSerializer<IHopMetadata> serializer = provider.getSerializer(metadataClass);
     serializer.save(metadata);
@@ -111,7 +121,7 @@ public class MetadataResource {
   @Path("/presentations/")
   @Produces(MediaType.APPLICATION_JSON)
   public Response listPresentations() throws HopException {
-    IHopMetadataProvider provider = leanUtil.getMetadataProvider();
+    IHopMetadataProvider provider = leanRest.getMetadataProvider();
     IHopMetadataSerializer<LeanPresentation> serializer =
         provider.getSerializer(LeanPresentation.class);
     List<PresentationResponse> list = new ArrayList<>();
@@ -133,6 +143,79 @@ public class MetadataResource {
           .type(MediaType.TEXT_PLAIN)
           .encoding("UTF-8")
           .build();
+    }
+  }
+
+  /**
+   * Modify a component on a page in a presentation.
+   *
+   * @param request the component modification request
+   * @return The name of the presentation that's been modified or an error.
+   */
+  @POST
+  @Path("modify/component/")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.TEXT_PLAIN)
+  public Response modifyComponent(ModifyComponentRequest request) {
+    try {
+      ILogChannel log = leanRest.getLog();
+
+      IHopMetadataProvider provider = leanRest.getMetadataProvider();
+      IHopMetadataSerializer<LeanPresentation> serializer =
+          provider.getSerializer(LeanPresentation.class);
+      LeanPresentation presentation = serializer.load(request.getPresentationName());
+      if (presentation == null) {
+        throw new LeanException("Couldn't find presentation " + request.getPresentationName());
+      }
+
+      if (request.getLogicalPageNumber() < 0
+          || request.getLogicalPageNumber() >= presentation.getPages().size()) {
+        throw new LeanException(
+            "Invalid page number "
+                + request.getLogicalPageNumber()
+                + ". Presentation "
+                + request.getPresentationName()
+                + " only has "
+                + presentation.getPages().size()
+                + " logical pages.");
+      }
+      LeanPage leanPage = presentation.getPages().get(request.getLogicalPageNumber());
+
+      LeanComponent component = leanPage.findComponent(request.getOldComponentName());
+      if (component == null) {
+        throw new LeanException(
+            "Unable to find component to replace '"
+                + request.getOldComponentName()
+                + "' on logical page number "
+                + request.getLogicalPageNumber()
+                + " of presentation "
+                + request.getPresentationName()
+                + ".");
+      }
+
+      int index = leanPage.getComponents().indexOf(component);
+
+      // De-serialize the component JSON
+      //
+      JsonMetadataParser<LeanComponent> parser =
+          new JsonMetadataParser<>(LeanComponent.class, leanRest.getMetadataProvider());
+
+      JsonFactory jsonFactory = new JsonFactory();
+      com.fasterxml.jackson.core.JsonParser jsonParser =
+          jsonFactory.createParser(request.getLeanComponentJson());
+
+      LeanComponent leanComponent = parser.loadJsonObject(LeanComponent.class, jsonParser);
+      leanPage.getComponents().set(index, leanComponent);
+
+      serializer.save(presentation);
+
+      log.logBasic(
+          "modify/component: modified presentation " + request.getPresentationName() + " saved.");
+
+      return Response.ok().entity(request.getPresentationName()).build();
+    } catch (Exception e) {
+      return getServerError(
+          "Error modifying component in presentation " + request.getPresentationName(), e);
     }
   }
 }

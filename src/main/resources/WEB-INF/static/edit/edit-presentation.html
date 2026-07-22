@@ -1,0 +1,156 @@
+<h2>Edit presentation</h2>
+<br>
+<!-- The name of the presentation -->
+<label for="name">Name: </label>
+<input type="text" id="name" name="name">
+<br>
+
+<!-- The description of the presentation -->
+<label for="description">Description: </label>
+<input type="text" id="description" name="description">
+<br>
+
+<!-- The theme to use -->
+<label for="defaultThemeName">The default theme name: </label>
+<select id="defaultThemeName" style="width: 50%"></select><br>
+<br>
+<br>
+
+<!-- The pages in the presentation -->
+<button type="button" class="collapsible">Content</button>
+<div class="content" style="display: block">
+    <!-- A button to add a page -->
+    <button type="button" onclick="addPresentationPage()">Add page</button>
+    <!-- The following table is dynamically generated: -->
+    <label for="logicalPages">Logical pages: </label>
+    <table id="logicalPages">
+        <tr>
+            <th>Width</th>
+            <th>Height</th>
+            <th>Left</th>
+            <th>Right</th>
+            <th>Top</th>
+            <th>Bottom</th>
+            <!--            <th>Header?</th>
+                        <th>Footer?</th>-->
+        </tr>
+    </table>
+    <br>
+    <br>
+</div>
+
+
+<!-- Buttons at the bottom -->
+<br>
+<button type="button" id="editButtonSave" onclick="savePresentation()">Save</button>
+<button type="button" id="editButtonClose" onclick="closePresentation()">Close</button>
+
+<!-- The script which will initialize drop-down boxes and so on.
+-->
+<script id="initScript">
+
+    setSelectOptions('defaultThemeName', themeNames);
+
+    // The collapsible sections...
+    //
+    $('.collapsible').click(function () {
+            let c = $(this).next();
+            if (c.css('display') === "block") {
+                c.css('display', 'none');
+            } else {
+                c.css('display', 'block');
+            }
+        }
+    );
+</script>
+
+<script id="loadScript">
+    setElement(presentationJson, 'name');
+    setElement(presentationJson, 'description');
+    setElement(presentationJson, 'defaultThemeName');
+
+    setPagesColumns(presentationJson, 'logicalPages', 'page',)
+
+    function setPagesColumns(json, tableId, columnPrefix) {
+        let jsonPages = json['pages'];
+        let table = document.getElementById(tableId);
+
+        for (let i = 0; i < jsonPages.length; i++) {
+            let jsonPage = jsonPages[i];
+            createColumnsRow(table, jsonPage, i, columnPrefix);
+        }
+    }
+
+    function createColumnsRow(table, jsonPage, i, columnPrefix) {
+        let row = table.insertRow(i + 1);
+        let index = 0;
+
+        // For the unique id for the row we use a global row number.
+        //
+        row.id = createTableRowId(table.id, rowIdNumber++);
+
+        // Width & Height
+        //
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "Width", i),
+            jsonPage["width"]
+        );
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "Height", i),
+            jsonPage["height"]
+        );
+        // Margins: left, right, top, bottom
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "MarginLeft", i),
+            jsonPage["leftMargin"]
+        );
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "MarginRight", i),
+            jsonPage["rightMargin"]
+        );
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "MarginTop", i),
+            jsonPage["topMargin"]
+        );
+        row.insertCell(index++).innerHTML = createText(
+            createTableColumnId(columnPrefix, "MarginBottom", i),
+            jsonPage["bottomMargin"]
+        );
+
+        /*        // Header or footer?
+                row.insertCell(index++).innerHTML = createCheckBox(
+                    createTableColumnId(columnPrefix, "Header", i),
+                    jsonPage["header"]
+                );
+                row.insertCell(index++).innerHTML = createCheckBox(
+                    createTableColumnId(columnPrefix, "Footer", i),
+                    jsonPage["footer"]
+                );*/
+
+        let editId = createTableColumnId(columnPrefix, "Edit", i);
+        row.insertCell(index++).innerHTML = createButton(editId, "Edit");
+        document.getElementById(editId).onclick = () => editPageRow(table, row, columnPrefix);
+
+        let addId = createTableColumnId(columnPrefix, "Add", i);
+        row.insertCell(index++).innerHTML = createButton(addId, "Add");
+        document.getElementById(addId).onclick = () => addPageRow(table, row, columnPrefix);
+
+        let delId = createTableColumnId(columnPrefix, "Delete", i);
+        row.insertCell(index++).innerHTML = createButton(delId, "Delete");
+        document.getElementById(delId).onclick = () => deletePageRow(table, row, columnPrefix);
+
+    }
+
+    function editPageRow(table, row, columnPrefix) {
+        alert("Edit page");
+    }
+
+    function addPageRow(table, row, columnPrefix) {
+        alert("Add page");
+    }
+
+    function deletePageRow(table, row, columnPrefix) {
+        alert("Delete page");
+    }
+
+</script>

@@ -1,0 +1,355 @@
+{
+  "themes": [],
+  "connectors": [],
+  "pages": [
+    {
+      "components": [
+        {
+          "layout": {
+            "top": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "",
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "",
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "Unique execution ID: ",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "label-execution-id"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "label-execution-id",
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 15,
+              "percentage": 0,
+              "componentName": "label-execution-id",
+              "alignment": "RIGHT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "${EXECUTION_ID}",
+              "horizontalAlignment": "CENTER",
+              "background": false,
+              "verticalAlignment": "MIDDLE"
+            }
+          },
+          "name": "value-execution-id"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "value-execution-id",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "",
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "Name: ",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "label-execution-name"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "value-execution-id",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 15,
+              "percentage": 0,
+              "componentName": "label-execution-id",
+              "alignment": "RIGHT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "${EXECUTION_NAME}",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "value-execution-name"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "label-execution-name",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "Filename: ",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "label-execution-filename"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "label-execution-name",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 15,
+              "percentage": 0,
+              "componentName": "label-execution-id",
+              "alignment": "RIGHT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "${EXECUTION_FILENAME}",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "value-execution-filename"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "label-execution-filename",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "Type: ",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "label-execution-type"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 5,
+              "percentage": 0,
+              "componentName": "label-execution-filename",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 15,
+              "percentage": 0,
+              "componentName": "label-execution-id",
+              "alignment": "RIGHT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLabelComponent": {
+              "border": false,
+              "underline": false,
+              "pluginId": "LeanLabelComponent",
+              "label": "${EXECUTION_TYPE}",
+              "horizontalAlignment": "LEFT",
+              "background": false,
+              "verticalAlignment": "TOP"
+            }
+          },
+          "name": "value-execution-type"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 10,
+              "percentage": 0,
+              "componentName": "label-execution-type",
+              "alignment": "BOTTOM"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "label-execution-type",
+              "alignment": "LEFT"
+            },
+            "bottom": {
+              "offset": 400,
+              "percentage": 0,
+              "componentName": "label-execution-type",
+              "alignment": "BOTTOM"
+            },
+            "right": {
+              "offset": 0,
+              "percentage": 100,
+              "componentName": "",
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanLineChartComponent": {
+              "showingVerticalTotals": false,
+              "sourceConnectorName": "hop-list-execution-durations",
+              "showingAxisTicks": true,
+              "horizontalLabelInterval": "5",
+              "pluginId": "LeanLineChartComponent",
+              "dotSize": 5,
+              "showingLegend": false,
+              "title": "Execution duration trend (ms) for ${EXECUTION_NAME}",
+              "facts": [
+                {
+                  "headerValue": "ms",
+                  "formatMask": "###,##0",
+                  "verticalAggregation": false,
+                  "horizontalAlignment": "CENTER",
+                  "horizontalAggregation": false,
+                  "width": 0,
+                  "aggregationMethod": "SUM",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "duration"
+                }
+              ],
+              "lineWidth": "2",
+              "showingVerticalLabels": true,
+              "horizontalMargin": 0,
+              "border": false,
+              "showingHorizontalLabels": true,
+              "drawingCurvedTrendLine": true,
+              "showingHorizontalTotals": false,
+              "verticalMargin": 0,
+              "horizontalDimensions": [
+                {
+                  "horizontalAlignment": "CENTER",
+                  "width": 0,
+                  "headerValue": "Execution",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "nr"
+                }
+              ],
+              "themeName": "Default",
+              "usingZeroBaseline": false,
+              "verticalDimensions": [],
+              "background": false
+            }
+          },
+          "name": "execution-duration-trend"
+        }
+      ],
+      "leftMargin": 25,
+      "pageNumber": 1,
+      "topMargin": 25,
+      "rightMargin": 25,
+      "footer": false,
+      "bottomMargin": 25,
+      "width": 1123,
+      "header": false,
+      "height": 794
+    }
+  ],
+  "parameterMappings": [
+    {
+      "mappings": [
+        {
+          "fieldName": "executionId",
+          "parameterName": "EXECUTION_ID"
+        },
+        {
+          "fieldName": "name",
+          "parameterName": "EXECUTION_NAME"
+        },
+        {
+          "fieldName": "executionType",
+          "parameterName": "EXECUTION_TYPE"
+        },
+        {
+          "fieldName": "filename",
+          "parameterName": "EXECUTION_FILENAME"
+        },
+        {
+          "fieldName": "loggingText",
+          "parameterName": "EXECUTION_LOGGING"
+        }
+      ],
+      "connectorName": "hop-execution-details"
+    }
+  ],
+  "defaultThemeName": "Default",
+  "name": "execution-details",
+  "interactions": []
+}

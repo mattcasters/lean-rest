@@ -1,5 +1,6 @@
 package org.lean.rest.render;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
@@ -15,7 +16,7 @@ import org.lean.presentation.layout.LeanLayoutResults;
 import org.lean.presentation.layout.LeanRenderPage;
 import org.lean.presentation.variable.LeanParameter;
 import org.lean.render.context.PresentationRenderContext;
-import org.lean.rest.LeanUtil;
+import org.lean.rest.LeanRest;
 import org.lean.rest.render.svg.PresentationSvgRendering;
 
 public class RenderFactory {
@@ -26,7 +27,7 @@ public class RenderFactory {
       List<LeanParameter> parameters)
       throws LeanException {
 
-    PresentationRenderContext renderContext = new PresentationRenderContext(presentation);
+    PresentationRenderContext renderContext = new PresentationRenderContext(presentation, metadataProvider);
     LeanLayoutResults layoutResults =
         presentation.doLayout(parent, renderContext, metadataProvider, parameters);
     presentation.render(layoutResults, metadataProvider);
@@ -55,7 +56,7 @@ public class RenderFactory {
 
   private static Response renderPageSvg(IRendering rendering, LeanRenderPage page)
       throws LeanException {
-    LeanUtil.getLeanUtil()
+    LeanRest.getInstance()
         .getLog()
         .logBasic(
             "SVG image rendering page "
@@ -65,15 +66,17 @@ public class RenderFactory {
     return Response.ok().entity(page.getSvgXml()).encoding("UTF-8").type("image/svg+xml").build();
   }
 
-  private static Response renderPageHtml(IRendering rendering, LeanRenderPage page)
-      throws LeanException {
-    LeanUtil.getLeanUtil()
+  private static Response renderPageHtml(IRendering rendering, LeanRenderPage renderPage) {
+    LeanRest.getInstance()
         .getLog()
         .logBasic(
-            "HTML rendering page " + page.getPageNumber() + " of rendering " + rendering.getId());
+            "HTML rendering page "
+                + renderPage.getPageNumber()
+                + " of rendering "
+                + rendering.getId());
 
     LeanLayoutResults layoutResults = rendering.getLayoutResults();
-    String templateFileName = "presentations-page.html";
+    String templateFileName = "handle-presentation.html";
     String html = "";
 
     // Let's load the HTML as a template from file
@@ -86,15 +89,20 @@ public class RenderFactory {
       // Page number is 1-based.
       //
       html = html.replace("%PAGE_COUNT%", "" + layoutResults.getRenderPages().size());
-      html = html.replace("%PAGE_NUMBER_0%", "" + (page.getPageNumber() - 1));
-      html = html.replace("%PAGE_NUMBER%", "" + page.getPageNumber());
+      html = html.replace("%PAGE_NUMBER_0%", "" + (renderPage.getPageNumber() - 1));
+      html = html.replace("%PAGE_NUMBER%", "" + renderPage.getPageNumber());
       html = html.replace("%PRESENTATION_NAME%", rendering.getPresentationName());
       html = html.replace("%RENDER_ID%", rendering.getId());
+
+      // The parameters as JSON
+      //
+      String parametersJson = new ObjectMapper().writeValueAsString(rendering.getParameters());
+      html = html.replace("%PARAMETER_VALUES%", "" + parametersJson);
 
       return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
     } catch (Exception e) {
       String errorMessage = "Error reading HTML template file " + templateFileName;
-      LeanUtil.getLeanUtil().getLog().logError(errorMessage, e);
+      LeanRest.getInstance().getLog().logError(errorMessage, e);
       return Response.serverError().entity(errorMessage + "\n" + Const.getStackTracker(e)).build();
     }
   }
@@ -112,7 +120,26 @@ public class RenderFactory {
       }
     } catch (Exception e) {
       String errorMessage = "Error reading home page HTML file: " + filename;
-      LeanUtil.getLeanUtil().getLog().logError(errorMessage, e);
+      LeanRest.getInstance().getLog().logError(errorMessage, e);
+      return Response.serverError().entity(errorMessage + "\n" + Const.getStackTracker(e)).build();
+    }
+  }
+
+  public static Response getComponentPluginPage(Object object, String componentId)
+      throws LeanException {
+    String filename = "plugins/component/" + componentId + ".html";
+    try {
+      try (InputStream inputStream =
+          object.getClass().getClassLoader().getResourceAsStream(filename)) {
+        if (inputStream == null) {
+          throw new LeanException("Unable to find file " + filename);
+        }
+        String html = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
+      }
+    } catch (Exception e) {
+      String errorMessage = "Error reading plugin editing page HTML file: " + filename;
+      LeanRest.getInstance().getLog().logError(errorMessage, e);
       return Response.serverError().entity(errorMessage + "\n" + Const.getStackTracker(e)).build();
     }
   }

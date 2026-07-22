@@ -1,0 +1,26 @@
+{
+  "shared": false,
+  "connector": {
+    "LeanRestConnector": {
+      "pluginId": "LeanRestConnector",
+      "url": "http://localhost:8081",
+      "path": "/hop/api/v1/execute/sync/",
+      "body": "{ \"service\" : \"list-executions\", \"runConfig\" : \"local\" }",
+      "rowsElement": "rows",
+      "fields": [
+        { "tag": "executionId", "type": "String" },
+        { "tag": "name", "type": "String" },
+        { "tag": "executionType", "type": "String" },
+        { "tag": "filename", "type": "String" },
+        { "tag": "registrationDate", "type": "String" },
+        { "tag": "executionStartDate", "type": "String" },
+        { "tag": "executionEndDate", "type": "String" },
+        { "tag": "runConfigurationName", "type": "String" },
+        { "tag": "updateTime", "type": "String" },
+        { "tag": "failed", "type": "String" },
+        { "tag": "statusDescription", "type": "String" }
+      ]
+    }
+  },
+  "name": "hop-rest"
+}

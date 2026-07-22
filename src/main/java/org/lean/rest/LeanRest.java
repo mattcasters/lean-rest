@@ -15,7 +15,8 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.hop.core.Const;
 import org.apache.hop.core.database.Database;
 import org.apache.hop.core.database.DatabaseMeta;
 import org.apache.hop.core.encryption.HopTwoWayPasswordEncoder;
@@ -28,59 +29,59 @@ import org.apache.hop.metadata.api.IHopMetadata;
 import org.apache.hop.metadata.api.IHopMetadataProvider;
 import org.apache.hop.metadata.api.IHopMetadataSerializer;
 import org.apache.hop.metadata.serializer.json.JsonMetadataProvider;
+import org.lean.core.AggregationMethod;
 import org.lean.core.LeanAttachment;
 import org.lean.core.LeanColorRGB;
-import org.lean.core.LeanColumn;
 import org.lean.core.LeanDatabaseConnection;
+import org.lean.core.LeanDimension;
 import org.lean.core.LeanEnvironment;
+import org.lean.core.LeanFact;
 import org.lean.core.LeanFont;
 import org.lean.core.LeanHorizontalAlignment;
-import org.lean.core.LeanSortMethod;
 import org.lean.core.LeanVerticalAlignment;
-import org.lean.core.draw.DrawnItem;
 import org.lean.core.exception.LeanException;
 import org.lean.presentation.LeanPresentation;
 import org.lean.presentation.component.LeanComponent;
-import org.lean.presentation.component.types.table.LeanTableComponent;
+import org.lean.presentation.component.types.chart.LeanLineChartComponent;
+import org.lean.presentation.component.types.label.LeanLabelComponent;
 import org.lean.presentation.connector.LeanConnector;
-import org.lean.presentation.connector.types.metadata.LeanMetadataPresentationsConnector;
 import org.lean.presentation.connector.types.sampledata.LeanSampleDataConnector;
-import org.lean.presentation.connector.types.sort.LeanSortConnector;
 import org.lean.presentation.connector.types.sql.LeanSqlConnector;
-import org.lean.presentation.interaction.LeanInteraction;
-import org.lean.presentation.interaction.LeanInteractionAction;
-import org.lean.presentation.interaction.LeanInteractionLocation;
-import org.lean.presentation.interaction.LeanInteractionMethod;
 import org.lean.presentation.layout.LeanLayout;
+import org.lean.presentation.layout.LeanLayoutBuilder;
 import org.lean.presentation.layout.LeanLayoutResults;
 import org.lean.presentation.layout.LeanRenderPage;
 import org.lean.presentation.page.LeanPage;
 import org.lean.presentation.theme.LeanTheme;
+import org.lean.presentation.variable.LeanParameter;
+import org.lean.presentation.variable.LeanParameterMapping;
 import org.lean.render.IRenderContext;
 import org.lean.render.context.PresentationRenderContext;
 import org.lean.rest.render.IRendering;
 
-public class LeanUtil {
+public class LeanRest {
   public static final String CONNECTOR_STEEL_WHEELS_NAME = "SteelWheels";
 
-  private static LeanUtil leanUtil;
+  private static LeanRest leanRest;
   private final LoggingObject loggingObject;
   private final IVariables variables;
   private final IHopMetadataProvider metadataProvider;
   private final LogChannel log;
   private final String metadataPath;
+  private final boolean corsAllowOrigin;
 
   private IHopMetadataSerializer<LeanPresentation> presentationSerializer;
   private IHopMetadataSerializer<LeanDatabaseConnection> dbConnSerializer;
   private IHopMetadataSerializer<LeanTheme> themeSerializer;
   private IHopMetadataSerializer<IHopMetadata> metadataSerializer;
 
-  private Map<String, IRendering> renderCache;
+  private final Map<String, IRendering> renderCache;
 
-  public LeanUtil() {
+  public LeanRest() {
     loggingObject = new LoggingObject("Lean Rest");
     log = new LogChannel("Lean Rest Server");
     renderCache = new HashMap<>();
+    System.out.println("Initializing the LEAN environment.");
     try {
       LeanEnvironment.init();
     } catch (Exception e) {
@@ -90,30 +91,40 @@ public class LeanUtil {
     Properties props = new Properties();
     String propertyPath;
     try {
-      if (StringUtils.isEmpty(System.getProperty("CONFIG_PATH"))) {
+      if (StringUtils.isEmpty(System.getProperty("LEAN_REST_CONFIG_PATH"))) {
         propertyPath = "/config";
       } else {
-        propertyPath = System.getProperty("CONFIG_PATH");
+        propertyPath = System.getProperty("LEAN_REST_CONFIG_PATH");
       }
       String configFileName = propertyPath + "/leanrest.properties";
+      log.logBasic("Finding configuration file: " + configFileName);
+
       File configFile = new File(configFileName);
       if (configFile.exists()) {
+        log.logBasic("Found configuration file: " + configFileName);
         try (InputStream inputStream = new FileInputStream(configFile)) {
           props.load(inputStream);
+          log.logBasic("Loaded configuration file: " + configFileName);
         }
       } else {
+        log.logBasic("Unable to find config file " + configFileName);
         try (InputStream inputStream = getClass().getResourceAsStream("/leanrest.properties")) {
+          if (inputStream == null) {
+            throw new IOException("Unable to find configuration leanrest.properties");
+          }
           props.load(inputStream);
         }
       }
     } catch (IOException e) {
       log.logError("Error initializing Lean Rest: ", e);
     }
-    metadataPath = props.getProperty("metadata.path");
+    log.logBasic("Loading settings from configuration file.");
 
+    metadataPath = props.getProperty("metadata.path");
     variables = Variables.getADefaultVariableSpace();
     metadataProvider =
         new JsonMetadataProvider(new HopTwoWayPasswordEncoder(), metadataPath, variables);
+    corsAllowOrigin = Const.toBoolean(props.getProperty("cors.allow.origin"));
 
     log.logBasic("Found " + metadataProvider.getMetadataClasses().size() + " metadata types.");
 
@@ -122,113 +133,167 @@ public class LeanUtil {
       dbConnSerializer = metadataProvider.getSerializer(LeanDatabaseConnection.class);
       themeSerializer = metadataProvider.getSerializer(LeanTheme.class);
 
-      createConnections();
-      createListPresentation();
-      importPresentations();
+      // createConnections();
+      // createExecutionDetailsPresentation();
+      // importPresentations();
     } catch (Exception e) {
       log.logError("Error creating presentation serializer: ", e);
     }
   }
 
-  private void createListPresentation() throws Exception {
+  private void createExecutionDetailsPresentation() throws Exception {
 
     IHopMetadataSerializer<LeanConnector> serializer =
         metadataProvider.getSerializer(LeanConnector.class);
 
-    // Add a few connectors to the metadata
-    //
-    String presentationListConnectorName = "presentation-list";
-    LeanMetadataPresentationsConnector presentationsListConnector =
-        new LeanMetadataPresentationsConnector();
-    LeanConnector presentationsList =
-        new LeanConnector(presentationListConnectorName, presentationsListConnector);
-    serializer.save(presentationsList);
-
-    // We get the data from a connector
-    //
-    String connectorName = "presentation-list-sorted";
-    LeanSortConnector sortConnector =
-        new LeanSortConnector(
-            List.of(new LeanColumn("name")),
-            List.of(new LeanSortMethod(LeanSortMethod.Type.STRING_ALPHA_CASE_INSENSITIVE, true)));
-    sortConnector.setSourceConnectorName(presentationListConnectorName);
-    LeanConnector presentationsListSorted = new LeanConnector(connectorName, sortConnector);
-    serializer.save(presentationsListSorted);
-
     // Create a presentation to list the available presentations
     //
     LeanPresentation presentation = new LeanPresentation();
-    presentation.setName("list-presentations");
-    LeanTheme theme = LeanTheme.getDefault();
-    presentation.getThemes().add(theme);
-    presentation.setDefaultThemeName(theme.getName());
+    presentation.setName("execution-details");
+    presentation.setDefaultThemeName(LeanTheme.getDefault().getName());
+
+    // Map some parameters
+    //
+    LeanParameterMapping parameterMapping = new LeanParameterMapping();
+    parameterMapping.setConnectorName("hop-execution-details");
+    parameterMapping.setMappings(
+        Arrays.asList(
+            new LeanParameterMapping.FieldToParameterMapping("executionId", "EXECUTION_ID"),
+            new LeanParameterMapping.FieldToParameterMapping("name", "EXECUTION_NAME"),
+            new LeanParameterMapping.FieldToParameterMapping("executionType", "EXECUTION_TYPE"),
+            new LeanParameterMapping.FieldToParameterMapping("filename", "EXECUTION_FILENAME"),
+            new LeanParameterMapping.FieldToParameterMapping("loggingText", "EXECUTION_LOGGING")));
+
+    presentation.getParameterMappings().add(parameterMapping);
+
+    // Now these variables are available in all components
+    //
 
     // Add one page
-    LeanPage page = LeanPage.getA4(1, false);
+    LeanPage page = LeanPage.getA4(false);
     presentation.getPages().add(page);
 
     // Italic font
     //
-    LeanFont italicFont = new LeanFont(theme.getDefaultFont());
+    LeanFont italicFont = new LeanFont(LeanTheme.getDefault().getDefaultFont());
     italicFont.setItalic(true);
 
-    // Add a table component listing the names
+    // Add a few label components
     //
-    String componentName = "list-presentations";
-    LeanTableComponent tableComponent =
-        new LeanTableComponent(
-            connectorName,
-            List.of(
-                new LeanColumn(
-                    "name",
-                    "Presentation name",
-                    LeanHorizontalAlignment.LEFT,
-                    LeanVerticalAlignment.MIDDLE),
-                new LeanColumn(
-                    "description",
-                    "Description",
-                    LeanHorizontalAlignment.LEFT,
-                    LeanVerticalAlignment.MIDDLE)));
-    tableComponent.setEvenHeights(true);
-    tableComponent.setHeader(true);
-    tableComponent.setHeader(true);
-    tableComponent.setHeaderFont(theme.getHorizontalDimensionsFont());
-    tableComponent.setDefaultFont(italicFont);
-    tableComponent.setHorizontalMargin(2);
-    tableComponent.setVerticalMargin(2);
-    tableComponent.setBackground(true);
-    tableComponent.setHeaderBackGroundColor(new LeanColorRGB(220, 220, 255));
-    tableComponent.setBackGroundColor(LeanColorRGB.WHITE);
-    LeanComponent component = new LeanComponent(componentName, tableComponent);
-    component.setLayout(
-        new LeanLayout(
-            new LeanAttachment(0, 0),
-            new LeanAttachment(100, 0),
-            new LeanAttachment(0, 0),
-            new LeanAttachment(100, 0)));
-    page.getComponents().add(component);
+    int verticalMargin = 5;
+    int horizontalMargin = 15;
+    LeanLabelComponent idLabelComponent = new LeanLabelComponent("Execution ID: ");
+    LeanComponent idLabel = new LeanComponent("label-execution-id", idLabelComponent);
+    idLabel.setLayout(LeanLayout.topLeftPage());
+    page.getComponents().add(idLabel);
 
-    // Add an interaction:
-    //  - Method: single left click
-    //  - Location: in the table component on a cell
-    //  - Action: open the presentation with the name in the cell value.
+    // ID
     //
-    LeanInteraction openPresentationInteraction = new LeanInteraction();
-    LeanInteractionLocation location =
-        new LeanInteractionLocation(
-            componentName,
-            "LeanTableComponent",
-            DrawnItem.DrawnItemType.ComponentItem.name(),
-            DrawnItem.Category.Cell.name(),
-            List.of("name"));
-    LeanInteractionAction action =
-        new LeanInteractionAction(LeanInteractionAction.ActionType.OPEN_PRESENTATION);
+    LeanLabelComponent idValueComponent = new LeanLabelComponent("${EXECUTION_ID}");
+    LeanComponent idValue = new LeanComponent("value-execution-id", idValueComponent);
+    idValue.setLayout(new LeanLayoutBuilder().beside(idLabel.getName(), horizontalMargin).build());
+    page.getComponents().add(idValue);
 
-    LeanInteractionMethod method = new LeanInteractionMethod(true, false);
-    openPresentationInteraction.setMethod(method);
-    openPresentationInteraction.setLocation(location);
-    openPresentationInteraction.getActions().add(action);
-    presentation.getInteractions().add(openPresentationInteraction);
+    LeanLabelComponent nameLabelComponent = new LeanLabelComponent("Name: ");
+    LeanComponent nameLabel = new LeanComponent("label-execution-name", nameLabelComponent);
+    nameLabel.setLayout(
+        new LeanLayoutBuilder().below(idLabel.getName(), verticalMargin).left().build());
+    page.getComponents().add(nameLabel);
+
+    // Name
+    //
+    LeanLabelComponent nameValueComponent = new LeanLabelComponent("${EXECUTION_NAME}");
+    LeanComponent nameValue = new LeanComponent("value-execution-name", nameValueComponent);
+    nameValue.setLayout(
+        new LeanLayoutBuilder()
+            .left(
+                new LeanAttachment(
+                    idLabel.getName(), 0, horizontalMargin, LeanAttachment.Alignment.RIGHT))
+            .top(
+                new LeanAttachment(
+                    idLabel.getName(), 0, verticalMargin, LeanAttachment.Alignment.BOTTOM))
+            .build());
+    page.getComponents().add(nameValue);
+
+    // Filename
+    //
+    LeanLabelComponent filenameLabelComponent = new LeanLabelComponent("Filename: ");
+    LeanComponent filenameLabel =
+        new LeanComponent("label-execution-filename", filenameLabelComponent);
+    filenameLabel.setLayout(
+        new LeanLayoutBuilder().below(nameLabel.getName(), verticalMargin).left().build());
+    page.getComponents().add(filenameLabel);
+
+    LeanLabelComponent filenameValueComponent = new LeanLabelComponent("${EXECUTION_FILENAME}");
+    LeanComponent filenameValue =
+        new LeanComponent("value-execution-filename", filenameValueComponent);
+    filenameValue.setLayout(
+        new LeanLayoutBuilder()
+            .left(
+                new LeanAttachment(
+                    idLabel.getName(), 0, horizontalMargin, LeanAttachment.Alignment.RIGHT))
+            .top(
+                new LeanAttachment(
+                    nameLabel.getName(), 0, verticalMargin, LeanAttachment.Alignment.BOTTOM))
+            .build());
+    page.getComponents().add(filenameValue);
+
+    // Type
+    //
+    LeanLabelComponent typeLabelComponent = new LeanLabelComponent("Type: ");
+    LeanComponent typeLabel = new LeanComponent("label-execution-type", typeLabelComponent);
+    typeLabel.setLayout(
+        new LeanLayoutBuilder().below(filenameLabel.getName(), verticalMargin).left().build());
+    page.getComponents().add(typeLabel);
+
+    LeanLabelComponent typeValueComponent = new LeanLabelComponent("${EXECUTION_TYPE}");
+    LeanComponent typeValue = new LeanComponent("value-execution-type", typeValueComponent);
+    typeValue.setLayout(
+        new LeanLayoutBuilder()
+            .left(
+                new LeanAttachment(
+                    idLabel.getName(), 0, horizontalMargin, LeanAttachment.Alignment.RIGHT))
+            .top(
+                new LeanAttachment(
+                    filenameLabel.getName(), 0, verticalMargin, LeanAttachment.Alignment.BOTTOM))
+            .build());
+    page.getComponents().add(typeValue);
+
+    // Execution duration trend
+    //
+    LeanLineChartComponent lineChartComponent =
+        new LeanLineChartComponent("hop-list-execution-durations");
+    lineChartComponent
+        .getHorizontalDimensions()
+        .add(
+            new LeanDimension(
+                "nr", "Execution", LeanHorizontalAlignment.CENTER, LeanVerticalAlignment.MIDDLE));
+    lineChartComponent
+        .getFacts()
+        .add(
+            new LeanFact(
+                "duration",
+                "ms",
+                LeanHorizontalAlignment.CENTER,
+                LeanVerticalAlignment.MIDDLE,
+                AggregationMethod.SUM,
+                "###,##0"));
+    lineChartComponent.setDrawingCurvedTrendLine(true);
+    lineChartComponent.setDotSize(3);
+    lineChartComponent.setShowingLegend(true);
+    lineChartComponent.setShowingHorizontalLabels(false);
+    lineChartComponent.setShowingVerticalLabels(true);
+    lineChartComponent.setLineWidth("1");
+    lineChartComponent.setTitle("Execution duration trend (ms) for ${EXECUTION_NAME}");
+    LeanComponent lineChart = new LeanComponent("execution-duration-trend", lineChartComponent);
+    lineChart.setLayout(
+        new LeanLayoutBuilder()
+            .below(typeLabel.getName(), 2 * verticalMargin)
+            .right(new LeanAttachment(null, 0, 600, LeanAttachment.Alignment.LEFT))
+            .bottom(
+                new LeanAttachment(typeLabel.getName(), 0, 400, LeanAttachment.Alignment.BOTTOM))
+            .build());
+    page.getComponents().add(lineChart);
 
     // Save the presentation
     presentationSerializer.save(presentation);
@@ -248,11 +313,11 @@ public class LeanUtil {
     }
   }
 
-  public static LeanUtil getInstance() {
-    if (leanUtil == null) {
-      leanUtil = new LeanUtil();
+  public static LeanRest getInstance() {
+    if (leanRest == null) {
+      leanRest = new LeanRest();
     }
-    return leanUtil;
+    return leanRest;
   }
 
   public LeanPresentation loadPresentation(String presentationName)
@@ -267,7 +332,7 @@ public class LeanUtil {
   private List<LeanRenderPage> renderPresentation(String presentationName)
       throws LeanException, HopException {
     LeanPresentation presentation = loadPresentation(presentationName);
-    IRenderContext renderContext = new PresentationRenderContext(presentation);
+    IRenderContext renderContext = new PresentationRenderContext(presentation, metadataProvider);
     LeanLayoutResults layout =
         presentation.doLayout(
             loggingObject, renderContext, metadataProvider, Collections.emptyList());
@@ -411,13 +476,27 @@ public class LeanUtil {
     renderCache.put(rendering.getId(), rendering);
   }
 
+  public void removeRendering(IRendering rendering) {
+    renderCache.remove(rendering.getId());
+  }
+
   public IRendering getRendering(String id) {
     return renderCache.get(id);
   }
 
-  public IRendering findRendering(String presentationName) {
+  public IRendering findRendering(String presentationName, List<LeanParameter> parameters) {
     for (IRendering rendering : renderCache.values()) {
       if (presentationName.equals(rendering.getPresentationName())) {
+        // Verify that the parameters are all the same with the same values.
+        //
+        if (rendering.getParameters().size() != parameters.size()) {
+          return null; // different rendering
+        }
+        for (int i = 0; i < parameters.size(); i++) {
+          if (!parameters.get(i).equals(rendering.getParameters().get(i))) {
+            return null;
+          }
+        }
         return rendering;
       }
     }
@@ -425,21 +504,12 @@ public class LeanUtil {
   }
 
   /**
-   * Gets leanUtil
+   * Sets leanRest
    *
-   * @return value of leanUtil
+   * @param leanRest value of leanRest
    */
-  public static LeanUtil getLeanUtil() {
-    return leanUtil;
-  }
-
-  /**
-   * Sets leanUtil
-   *
-   * @param leanUtil value of leanUtil
-   */
-  public static void setLeanUtil(LeanUtil leanUtil) {
-    LeanUtil.leanUtil = leanUtil;
+  public static void setLeanUtil(LeanRest leanRest) {
+    LeanRest.leanRest = leanRest;
   }
 
   /**
@@ -558,5 +628,14 @@ public class LeanUtil {
    */
   public void setMetadataSerializer(IHopMetadataSerializer<IHopMetadata> metadataSerializer) {
     this.metadataSerializer = metadataSerializer;
+  }
+
+  /**
+   * Gets corsAllowOrigin
+   *
+   * @return value of corsAllowOrigin
+   */
+  public boolean isCorsAllowOrigin() {
+    return corsAllowOrigin;
   }
 }

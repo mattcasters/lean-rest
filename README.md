@@ -1,13 +1,25 @@
-# Lean Rest 
+# Lean Rest
 
-This project provides a REST api for the [Lean engine](https://github.com/projectlean/lean-engine). 
+REST API for the [Lean engine](https://github.com/mattcasters/lean-engine): metadata access and **server-side SVG** presentation rendering.
 
-## Steps to get going locally 
+## Platform
 
-* build the lean engine
-* run `mvn clean install jetty:run -DCONFIG_PATH=<PATH_TO_THIS_REPOSITORY>/src/test/resources/` to use the leanrest.properties file
-* For example: `mvn clean install jetty:run -DCONFIG_PATH=src/test/resources/`
-* To debug set variable `MAVEN_OPTS` to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005` and then attach your debugger to this port.
+| Requirement | Version |
+|-------------|---------|
+| Java | **21** |
+| Apache Hop | **2.18.1** |
+| lean-engine | **1.0.0-SNAPSHOT** |
+
+## Steps to get going locally
+
+1. Build and install lean-engine: `cd ../lean-engine && mvn clean install`
+2. From this repo:  
+   `mvn clean install jetty:run -DCONFIG_PATH=src/test/resources/`
+3. Open http://localhost:8080/lean/render/main
+
+To debug, set `MAVEN_OPTS` to  
+`-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005`  
+and attach a debugger to that port.
 
 ## Build and run the container (experimental)
 
@@ -38,13 +50,13 @@ After you've built the API and started locally or in the container, visit
 
 ### Rendering
 
-| Service                                      | Type | Description                                                   |
-|:---------------------------------------------|:----:|:--------------------------------------------------------------|
-| `/lean/render/main`                          | GET  | Renders and displays the main presentation in HTML.           |
-| `/lean/render/presentation/<name>/`          | GET  | Renders a presentation. Returns the ID of the rendering.      |
-| `/lean/render/info/pages/<renderId>/`        | GET  | Get the number of pages for the given presentation rendering. |
-| `/lean/render/page/<renderId>/<type>/<page>` | GET  | Get the page of a rendering for types `SVG` or `HTML`.        |
-| `/lean/render/lookupActions/`                | POST | Returns possible actions for an ActionsRequest (1).           |
+| Service                                      | Type | Description                                                                                  |
+|:---------------------------------------------|:----:|:---------------------------------------------------------------------------------------------|
+| `/lean/render/main`                          | GET  | Renders and displays the main presentation in HTML.                                          |
+| `/lean/render/presentation/<name>/`          | POST | Renders a presentation. Returns the ID of the rendering. You can post variables in the body. |
+| `/lean/render/info/pages/<renderId>/`        | GET  | Get the number of pages for the given presentation rendering.                                |
+| `/lean/render/page/<renderId>/<type>/<page>` | GET  | Get the page of a rendering for types `SVG` or `HTML`.                                       |
+| `/lean/render/lookupActions/`                | POST | Returns possible actions for an ActionsRequest (1).                                          |
 
 (1) An ActionsRequest looks like this:
 

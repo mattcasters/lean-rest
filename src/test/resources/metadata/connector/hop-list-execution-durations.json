@@ -1,0 +1,24 @@
+{
+  "name": "hop-list-execution-durations",
+  "shared": false,
+  "connector": {
+    "LeanRestConnector": {
+      "pluginId": "LeanRestConnector",
+      "url": "http://localhost:8081",
+      "path": "/hop/api/v1/execute/sync/",
+      "body": "{ \"service\" : \"list-execution-durations\", \"runConfig\" : \"local\", \"variables\": { \"OBJECT_NAME\" : \"${EXECUTION_NAME}\" } }",
+      "rowsElement": "rows",
+      "fields": [
+        {
+          "tag": "nr",
+          "type": "String"
+        },
+        {
+          "tag": "duration",
+          "type": "Integer",
+          "formatMask": "000"
+        }
+      ]
+    }
+  }
+}

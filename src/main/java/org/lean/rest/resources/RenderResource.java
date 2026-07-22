@@ -1,24 +1,36 @@
 package org.lean.rest.resources;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.hop.core.Const;
+import org.apache.hop.core.row.IRowMeta;
+import org.apache.hop.metadata.api.IHopMetadataProvider;
+import org.apache.hop.metadata.api.IHopMetadataSerializer;
+import org.apache.hop.metadata.serializer.json.JsonMetadataParser;
+import org.json.simple.JSONObject;
 import org.lean.core.draw.DrawnItem;
+import org.lean.core.exception.LeanException;
 import org.lean.presentation.LeanPresentation;
+import org.lean.presentation.component.LeanComponent;
+import org.lean.presentation.connector.LeanConnector;
 import org.lean.presentation.interaction.LeanInteraction;
 import org.lean.presentation.layout.LeanRenderPage;
+import org.lean.presentation.page.LeanPage;
 import org.lean.rest.interaction.InteractionLookupResult;
 import org.lean.rest.render.IRendering;
 import org.lean.rest.render.RenderFactory;
 import org.lean.rest.resources.requests.ActionsRequest;
+import org.lean.rest.resources.requests.ConnectorDescriptionRequest;
+import org.lean.rest.resources.requests.RenderPresentationRequest;
+import org.lean.rest.resources.responses.RowMetaResponse;
 
 @Path("render/")
 public class RenderResource extends BaseResource {
@@ -43,31 +55,39 @@ public class RenderResource extends BaseResource {
    * the drawn areas and everything else that is needed to visualize a presentation for the
    * requested render type.
    *
-   * @param presentationName The name of the presentation to render
+   * @param request The rendering details like parameters, and so on.
    * @return The response in the form of the UUID of the rendering.
    */
-  @GET
-  @Path("/presentation/{name}/")
-  public Response renderPresentation(@PathParam("name") String presentationName) {
+  @POST
+  @Path("/presentation")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.TEXT_PLAIN)
+  public Response renderPresentation(RenderPresentationRequest request) {
     try {
       // Check the cache first. Render if needed.
       //
-      IRendering rendering = leanUtil.findRendering(presentationName);
+      IRendering rendering =
+          leanRest.findRendering(request.getPresentationName(), request.getParameters());
+      if (rendering != null && request.isReload()) {
+        leanRest.removeRendering(rendering);
+        rendering = null;
+      }
       if (rendering == null) {
-        LeanPresentation presentation = leanUtil.loadPresentation(presentationName);
+        LeanPresentation presentation = leanRest.loadPresentation(request.getPresentationName());
         rendering =
             RenderFactory.renderPresentation(
-                leanUtil.getLoggingObject(),
-                leanUtil.getMetadataProvider(),
+                leanRest.getLoggingObject(),
+                leanRest.getMetadataProvider(),
                 presentation,
-                Collections.emptyList());
+                request.getParameters());
 
-        leanUtil.storeRendering(rendering);
+        leanRest.storeRendering(rendering);
       }
 
       return Response.ok().entity(rendering.getId()).type(MediaType.TEXT_PLAIN).build();
     } catch (Exception e) {
-      String errorMessage = "Unexpected error rendering presentation '" + presentationName + "'";
+      String errorMessage =
+          "Unexpected error rendering presentation '" + request.getPresentationName() + "'";
       return getServerError(errorMessage, e);
     }
   }
@@ -82,13 +102,8 @@ public class RenderResource extends BaseResource {
   @Path("/info/pages/{renderId}")
   public Response getPageCount(@PathParam("renderId") String renderId) {
     try {
-      IRendering rendering = leanUtil.getRendering(renderId);
-      if (rendering == null) {
-        return getServerError("Unable to find rendering with ID " + renderId, false);
-      }
-
+      IRendering rendering = lookupRendering(renderId);
       int pageCount = rendering.getLayoutResults().getRenderPages().size();
-
       return Response.ok().entity(pageCount).build();
     } catch (Exception e) {
       String errorMessage =
@@ -113,22 +128,8 @@ public class RenderResource extends BaseResource {
       @PathParam("pageNumber") int pageNumber) {
 
     try {
-      IRendering rendering = leanUtil.getRendering(renderId);
-      if (rendering == null) {
-        return getServerError("Unable to find rendering with ID " + renderId, false);
-      }
-
-      List<LeanRenderPage> renderPages = rendering.getLayoutResults().getRenderPages();
-      if (pageNumber < 0 || pageNumber >= renderPages.size()) {
-        return getServerError(
-            "Invalid page number requested: "
-                + pageNumber
-                + ".  Available pages: "
-                + renderPages.size(),
-            false);
-      }
-      LeanRenderPage page = renderPages.get(pageNumber);
-
+      IRendering rendering = lookupRendering(renderId);
+      LeanRenderPage page = lookupRenderPage(rendering, pageNumber);
       return RenderFactory.renderPage(rendering, page, renderType);
     } catch (Exception e) {
       String errorMessage =
@@ -137,29 +138,29 @@ public class RenderResource extends BaseResource {
     }
   }
 
+  private LeanRenderPage lookupRenderPage(IRendering rendering, int pageNumber)
+      throws LeanException {
+    List<LeanRenderPage> renderPages = rendering.getLayoutResults().getRenderPages();
+    if (pageNumber < 0 || pageNumber >= renderPages.size()) {
+      throw new LeanException(
+          "Invalid page number requested: "
+              + pageNumber
+              + ".  Available pages: "
+              + renderPages.size());
+    }
+    LeanRenderPage page = renderPages.get(pageNumber);
+    return page;
+  }
+
   @POST
   @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
   @Path("/lookupActions/")
-  public Response lookupActions(String json) {
+  public Response lookupActions(ActionsRequest request) {
     try {
-      ActionsRequest r = new ObjectMapper().readValue(json, ActionsRequest.class);
-
-      IRendering rendering = leanUtil.getRendering(r.getRenderId());
-      if (rendering == null) {
-        return getServerError("Unable to find rendering with ID " + r.getRenderId(), false);
-      }
-      List<LeanRenderPage> renderPages = rendering.getLayoutResults().getRenderPages();
-      if (r.getPageNumber() < 0 || r.getPageNumber() >= renderPages.size()) {
-        return getServerError(
-            "Invalid page number requested: "
-                + r.getPageNumber()
-                + ".  Available pages: "
-                + renderPages.size(),
-            false);
-      }
-      LeanRenderPage page = renderPages.get(r.getPageNumber());
-
-      DrawnItem drawnItem = page.lookupDrawnItem(r.getX(), r.getY());
+      IRendering rendering = lookupRendering(request.getRenderId());
+      LeanRenderPage page = lookupRenderPage(rendering, request.getPageNumber());
+      DrawnItem drawnItem = page.lookupDrawnItem(request.getX(), request.getY());
       InteractionLookupResult result = new InteractionLookupResult();
       if (drawnItem != null) {
         // See if we have an action to match this...
@@ -167,11 +168,6 @@ public class RenderResource extends BaseResource {
         LeanPresentation presentation = rendering.getPresentation();
         LeanInteraction interaction = presentation.findInteraction(null, drawnItem);
         if (interaction != null) {
-          if (leanUtil.getLog().isDetailed()) {
-            leanUtil
-                .getLog()
-                .logDetailed("Interaction found for (" + r.getX() + "," + r.getY() + ")");
-          }
           // We found an interaction for this drawn item...
           //
           result.setFound(true);
@@ -189,12 +185,123 @@ public class RenderResource extends BaseResource {
     } catch (Exception e) {
       // Don't log on the server, it can be tedious to see all the failed lookups.
       //
-      String errorMessage = "Unexpected error retrieving the possible actions for request: " + json;
+      String errorMessage =
+          "Unexpected error retrieving the possible actions for request: " + request;
       return Response.serverError()
           .status(Response.Status.INTERNAL_SERVER_ERROR)
           .entity(errorMessage + "\n" + Const.getSimpleStackTrace(e))
           .type(MediaType.TEXT_PLAIN)
           .build();
     }
+  }
+
+  @POST
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Path("/getComponent/")
+  public Response getComponent(ActionsRequest request) {
+    try {
+      IRendering rendering = lookupRendering(request.getRenderId());
+      LeanRenderPage page = lookupRenderPage(rendering, request.getPageNumber());
+      List<String> names = page.lookupComponentName(request.getX(), request.getY());
+      if (names.isEmpty()) {
+        throw new LeanException(
+            "Unable to find any components on location ("
+                + request.getX()
+                + ","
+                + request.getY()
+                + ")");
+      }
+      LeanComponent component = page.getPage().findComponent(names.get(0));
+
+      // Serialize this to JSON...
+      //
+      JsonMetadataParser<LeanComponent> parser =
+          new JsonMetadataParser<>(LeanComponent.class, leanRest.getMetadataProvider());
+      JSONObject jsonObject = parser.getJsonObject(component);
+
+      return Response.ok()
+          .entity(jsonObject.toJSONString())
+          .encoding("UTF-8")
+          .type(MediaType.APPLICATION_JSON)
+          .build();
+    } catch (Exception e) {
+      // Don't log on the server, it can be tedious to see all the failed lookups.
+      //
+      String errorMessage =
+          "Unexpected error retrieving the JSON of a component actions for request: " + request;
+      return Response.serverError()
+          .status(Response.Status.INTERNAL_SERVER_ERROR)
+          .entity(errorMessage + "\n" + Const.getSimpleStackTrace(e))
+          .type(MediaType.TEXT_PLAIN)
+          .build();
+    }
+  }
+
+  /**
+   * Get the component names for a presentation.
+   *
+   * @param renderId The rendering ID
+   * @param pageNumber The rendered page number
+   * @return
+   */
+  @GET
+  @Path("/info/components/{renderId}/{pageNumber}")
+  public Response getPageCount(
+      @PathParam("renderId") String renderId, @PathParam("pageNumber") int pageNumber) {
+    try {
+      IRendering rendering = lookupRendering(renderId);
+      LeanRenderPage renderPage = lookupRenderPage(rendering, pageNumber);
+      LeanPage leanPage = renderPage.getPage();
+
+      List<String> names = new ArrayList<>();
+      for (LeanComponent component : leanPage.getComponents()) {
+        names.add(component.getName());
+      }
+      return Response.ok().entity(names).build();
+    } catch (Exception e) {
+      String errorMessage =
+          "Unexpected error getting the components for presentation rendering ID " + renderId;
+      return getServerError(errorMessage, e);
+    }
+  }
+
+  /**
+   * Describe the output of a connector in a presentation rendering.
+   *
+   * @param request the request object which contains all the contextual information needed.
+   * @return The row metadata describing the connector output.
+   */
+  @POST
+  @Path("/connector/describe/")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response describeConnectorOutput(ConnectorDescriptionRequest request) {
+    try {
+      IRendering rendering = lookupRendering(request.getRenderId());
+      IHopMetadataProvider provider = leanRest.getMetadataProvider();
+      IHopMetadataSerializer<LeanConnector> serializer =
+          provider.getSerializer(LeanConnector.class);
+      LeanConnector connector = serializer.load(request.getConnectorName());
+      if (connector == null) {
+        throw new LeanException(
+            "Connector '" + request.getConnectorName() + "' couldn't be found in the metadata");
+      }
+
+      // Describe the output
+      //
+      IRowMeta rowMeta = connector.describeOutput(rendering.getLayoutResults().getDataContext());
+      return Response.ok(new RowMetaResponse(rowMeta).getValueMetaList()).build();
+    } catch (Exception e) {
+      return getServerError(
+          "Error getting row metadata from connector " + request.getConnectorName(), e);
+    }
+  }
+
+  private IRendering lookupRendering(String renderId) throws LeanException {
+    IRendering rendering = leanRest.getRendering(renderId);
+    if (rendering == null) {
+      throw new LeanException("Unable to find rendering with ID " + renderId);
+    }
+    return rendering;
   }
 }

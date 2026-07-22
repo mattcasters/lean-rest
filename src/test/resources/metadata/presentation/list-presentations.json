@@ -179,6 +179,7 @@
               },
               "pluginId": "LeanTableComponent",
               "verticalMargin": 2,
+              "themeName": "Default",
               "headerOnEveryPage": false,
               "backGroundColor": {
                 "b": 255,
@@ -216,6 +217,7 @@
       "height": 794
     }
   ],
+  "parameterMappings": [],
   "defaultThemeName": "Default",
   "name": "list-presentations",
   "interactions": [

@@ -6,6 +6,8 @@
 <title>Welcome to the Lean cloud</title>
 <body>
 <script>
+    const API_BASE = '/lean/api/';
+
     $(document).ready(function () {
         // All this does is open the presentations list.
         // It will become a more complicated dashboard later.
@@ -16,14 +18,29 @@
     // Open the presentation with the given name
     //
     function openPresentation(presentationName) {
-        $.get("/lean/render/presentation/" + presentationName + "/", (renderId, status) => {
-            if (status === "success") {
-                // Open the first page.
-                window.open("/lean/render/page/" + renderId + "/HTML/0/", "_self");
+        let postData = { };
+        postData.presentationName = presentationName;
+        postData.parameters = [];
+
+        let stringData = JSON.stringify(postData);
+        // alert("Posting presentation postData: " + stringData);
+
+        $.ajax({
+            type: "POST",
+            url: API_BASE + "render/presentation/",
+            data: stringData,
+            dataType: 'text', // return type
+            contentType: "application/json; charset=utf-8", // posting
+            success: function (data, status) {
+                let renderId = data;
+                window.open(API_BASE + "render/page/" + renderId + "/HTML/0/", "_self");
+            },
+            error: function (request, status, error) {
+                alert("Error rendering presentation, status: " + status + " : " +
+                    request.responseText + ", error: " + error);
             }
         });
     }
-
 </script>
 </body>
 </html>

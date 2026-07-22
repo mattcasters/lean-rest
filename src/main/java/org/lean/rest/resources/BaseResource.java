@@ -3,10 +3,10 @@ package org.lean.rest.resources;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.apache.hop.core.Const;
-import org.lean.rest.LeanUtil;
+import org.lean.rest.LeanRest;
 
 public abstract class BaseResource {
-  protected final LeanUtil leanUtil = LeanUtil.getInstance();
+  protected final LeanRest leanRest = LeanRest.getInstance();
 
   protected Response getServerError(String errorMessage) {
     return getServerError(errorMessage, null, true);
@@ -23,9 +23,9 @@ public abstract class BaseResource {
   protected Response getServerError(String errorMessage, Exception e, boolean logOnServer) {
     if (logOnServer) {
       if (e != null) {
-        leanUtil.getLog().logError(errorMessage, e);
+        leanRest.getLog().logError(errorMessage, e);
       } else {
-        leanUtil.getLog().logError(errorMessage);
+        leanRest.getLog().logError(errorMessage);
       }
     }
     return Response.serverError()

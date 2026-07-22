@@ -1,17 +1,17 @@
 package org.lean.rest.servlet;
 
-import org.lean.rest.LeanUtil;
+import org.lean.rest.LeanRest;
 
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
+import jakarta.servlet.ServletContextEvent;
+import jakarta.servlet.ServletContextListener;
+import jakarta.servlet.annotation.WebListener;
 
 @WebListener
 public class LeanServletContextListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent event){
-        LeanUtil leanUtil = LeanUtil.getInstance();
+        LeanRest leanRest = LeanRest.getInstance();
     }
 
 }

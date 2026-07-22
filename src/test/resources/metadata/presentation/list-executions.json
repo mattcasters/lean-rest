@@ -1,0 +1,175 @@
+{
+  "themes": [],
+  "connectors": [],
+  "pages": [
+    {
+      "components": [
+        {
+          "layout": {
+            "top": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": ""
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": ""
+            },
+            "bottom": {
+              "offset": 0,
+              "percentage": 100,
+              "componentName": ""
+            },
+            "right": {
+              "offset": 0,
+              "percentage": 100,
+              "componentName": ""
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanTableComponent": {
+              "border": false,
+              "columnSelection": [
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "ID",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "executionId"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Name",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "name"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Type",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "executionType"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Start",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "executionStartDate"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "End",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "executionEndDate"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Status",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "statusDescription"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Failed?",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "failed"
+                }
+              ],
+              "sourceConnectorName": "hop-rest",
+              "headerFont": {
+                "fontName": "Arial",
+                "fontSize": "12",
+                "bold": true,
+                "italic": false
+              },
+              "pluginId": "LeanTableComponent",
+              "verticalMargin": 1,
+              "gridLineWidth": "1",
+              "headerOnEveryPage": true,
+              "evenHeights": true,
+              "background": false,
+              "gridColor": {
+                "b": 232,
+                "r": 232,
+                "g": 232
+              },
+              "header": true,
+              "horizontalMargin": 10,
+              "headerBackGroundColor": {
+                "b": 255,
+                "r": 158,
+                "g": 239
+              }
+            }
+          },
+          "name": "list-executions"
+        }
+      ],
+      "leftMargin": 25,
+      "pageNumber": 1,
+      "topMargin": 25,
+      "rightMargin": 25,
+      "footer": false,
+      "bottomMargin": 25,
+      "width": 1123,
+      "header": false,
+      "height": 794
+    }
+  ],
+  "parameterMappings": [],
+  "defaultThemeName": "Default",
+  "name": "list-executions",
+  "interactions": [
+    {
+      "method": {
+        "mouseClick": true,
+        "mouseDoubleClick": false
+      },
+      "location": {
+        "itemType": "ComponentItem",
+        "itemCategory": "Cell",
+        "componentName": "list-executions",
+        "dimensionColumns": [
+          "executionId"
+        ],
+        "componentPluginId": "LeanTableComponent"
+      },
+      "actions": [
+        {
+          "actionType": "OPEN_PRESENTATION",
+          "objectName": "execution-details",
+          "valueParameter": "EXECUTION_ID"
+        }
+      ]
+    },
+    {
+      "method": {
+        "mouseClick": true,
+        "mouseDoubleClick": false
+      },
+      "location": {
+        "itemType": "ComponentItem",
+        "itemCategory": "Cell",
+        "componentName": "list-executions",
+        "dimensionColumns": [
+          "name"
+        ],
+        "componentPluginId": "LeanTableComponent"
+      },
+      "actions": [
+        {
+          "actionType": "OPEN_PRESENTATION",
+          "objectName": "execution-trend",
+          "valueParameter": "OBJECT_NAME"
+        }
+      ]
+    }
+  ]
+}

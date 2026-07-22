@@ -1,0 +1,63 @@
+{
+  "name": "hop-execution-details",
+  "shared": false,
+  "connector": {
+    "LeanRestConnector": {
+      "pluginId": "LeanRestConnector",
+      "url": "http://localhost:8081",
+      "path": "/hop/api/v1/execute/sync/",
+      "body": "{ \"service\" : \"get-execution-details\", \"runConfig\" : \"local\", \"variables\": { \"EXECUTION_ID\" : \"${EXECUTION_ID}\" } }",
+      "rowsElement": "rows",
+      "fields": [
+        {
+          "tag": "executionId",
+          "type": "String"
+        },
+        {
+          "tag": "name",
+          "type": "String"
+        },
+        {
+          "tag": "executionType",
+          "type": "String"
+        },
+        {
+          "tag": "filename",
+          "type": "String"
+        },
+        {
+          "tag": "registrationDate",
+          "type": "String"
+        },
+        {
+          "tag": "executionStartDate",
+          "type": "String"
+        },
+        {
+          "tag": "executionEndDate",
+          "type": "String"
+        },
+        {
+          "tag": "runConfigurationName",
+          "type": "String"
+        },
+        {
+          "tag": "updateTime",
+          "type": "String"
+        },
+        {
+          "tag": "failed",
+          "type": "String"
+        },
+        {
+          "tag": "statusDescription",
+          "type": "String"
+        },
+        {
+          "tag": "loggingText",
+          "type": "String"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,361 @@
+<!-- Show the name of the presentation -->
+<label for="presentationName">Presentation name: </label>
+<input type="text" id="presentationName" name="presentationName" readonly style="background: lightgray">
+<br>
+
+<!-- Edit the name of the component -->
+<label for="componentName">Component name: </label>
+<input type="text" id="componentName" name="componentName">
+<br>
+<br>
+
+<!-- The data to chart -->
+<button type="button" class="collapsible">Input data</button>
+<div class="content" style="display: block">
+    <!-- The name of the connector to use to read from -->
+    <label for="sourceConnectorName">Source connector: </label>
+    <select id="sourceConnectorName" style="width: 50%"></select><br>
+    <br>
+    <!-- The following table is dynamically generated: -->
+    <label for="horizontalDimensions">Horizontal dimensions: </label>
+    <table id="horizontalDimensions">
+        <tr>
+            <th>Column name</th>
+            <th>Header value</th>
+            <th>Width</th>
+            <th>H-Align</th>
+            <th>V-align</th>
+            <th>Format</th>
+            <th>Add</th>
+            <th>Delete</th>
+        </tr>
+    </table>
+    <br>
+    <label for="facts">Facts: </label>
+    <table id="facts">
+        <tr>
+            <th>Column name</th>
+            <th>Header value</th>
+            <th>Width</th>
+            <th>H-Align</th>
+            <th>V-Align</th>
+            <th>Format</th>
+            <th>H-Agg?</th>
+            <th>V-Agg?</th>
+            <th>Agg.Method</th>
+            <th>Add</th>
+            <th>Delete</th>
+        </tr>
+    </table>
+    <br>
+    <br>
+</div>
+
+<!-- Line chart specific options -->
+<button type="button" class="collapsible">Line chart options</button>
+<div class="content" style="display: none">
+    <!-- Curved lines? -->
+    <input type="checkbox" id="drawingCurvedTrendLine">
+    <label for="drawingCurvedTrendLine">Draw curved trend line? </label>
+    <br>
+    <label for="horizontalMargin">Horizontal margin </label>
+    <input type="text" id="horizontalMargin">
+    <br>
+    <label for="verticalMargin">Vertical margin </label>
+    <input type="text" id="verticalMargin">
+    <br>
+    <input type="checkbox" id="showingHorizontalLabels">
+    <label for="showingHorizontalLabels">Show horizontal labels? </label>
+    <br>
+    <label for="horizontalLabelInterval">Horizontal label interval </label>
+    <input type="text" id="horizontalLabelInterval">
+    <br>
+    <input type="checkbox" id="showingVerticalLabels">
+    <label for="showingVerticalLabels">Show vertical labels? </label>
+    <br>
+    <input type="checkbox" id="showingAxisTicks">
+    <label for="showingAxisTicks">Show axis ticks? </label>
+    <br>
+    <label for="dotSize">Dot size </label>
+    <input type="text" id="dotSize">
+    <br>
+    <label for="lineWidth">Line width </label>
+    <input type="text" id="lineWidth">
+    <br>
+    <label for="title">Chart title </label>
+    <input type="text" id="title" style="width: 90%">
+    <br>
+    <input type="checkbox" id="usingZeroBaseline">
+    <label for="usingZeroBaseline">Zero based line? </label>
+    <br>
+    <input type="checkbox" id="showingLegend">
+    <label for="showingLegend">Show legend? </label>
+    <br>
+    <input type="checkbox" id="setHorizontalDimensionsFont">
+    <label for="horizontalDimensionsFontName">Horizontal dimensions font </label>
+    <input id="horizontalDimensionsFontName" type="text" style="width: 25%">
+    <input id="horizontalDimensionsFontSize" type="text" style="width: 10%">
+    <label for="horizontalDimensionsFontBold">bold? </label>
+    <input id="horizontalDimensionsFontBold" type="checkbox">
+    <label for="horizontalDimensionsFontItalic">italic? </label>
+    <input id="horizontalDimensionsFontItalic" type="checkbox">
+    <br>
+    <input type="checkbox" id="setHorizontalDimensionsColor">
+    <label for="setHorizontalDimensionsColor">Horizontal dimensions color </label>
+    <input id="horizontalDimensionsColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="setVerticalDimensionsFont">
+    <label for="verticalDimensionsFontName">Vertical dimensions font </label>
+    <input id="verticalDimensionsFontName" type="text" style="width: 25%">
+    <input id="verticalDimensionsFontSize" type="text" style="width: 10%">
+    <label for="verticalDimensionsFontBold">bold? </label>
+    <input id="verticalDimensionsFontBold" type="checkbox">
+    <label for="verticalDimensionsFontItalic">italic? </label>
+    <input id="verticalDimensionsFontItalic" type="checkbox">
+    <br>
+    <input type="checkbox" id="setVerticalDimensionsColor">
+    <label for="setVerticalDimensionsColor">Vertical dimensions color </label>
+    <input id="verticalDimensionsColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="setFactsFont">
+    <label for="factsFontName">Facts dimensions font </label>
+    <input id="factsFontName" type="text" style="width: 25%">
+    <input id="factsFontSize" type="text" style="width: 10%">
+    <label for="factsFontBold">bold? </label>
+    <input id="factsFontBold" type="checkbox">
+    <label for="factsFontItalic">italic? </label>
+    <input id="factsFontItalic" type="checkbox">
+    <br>
+    <input type="checkbox" id="setFactsColor">
+    <label for="setFactsColor">Facts color </label>
+    <input id="factsColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="setTitleFont">
+    <label for="titleFontName">Title dimensions font </label>
+    <input id="titleFontName" type="text" style="width: 25%">
+    <input id="titleFontSize" type="text" style="width: 10%">
+    <label for="titleFontBold">bold? </label>
+    <input id="titleFontBold" type="checkbox">
+    <label for="titleFontItalic">italic? </label>
+    <input id="titleFontItalic" type="checkbox">
+    <br>
+    <input type="checkbox" id="setTitleColor">
+    <label for="setTitleColor">Title color </label>
+    <input id="titleColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="setGridColor">
+    <label for="setGridColor">Grid color </label>
+    <input id="gridColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="setAxisColor">
+    <label for="setAxisColor">Axis color </label>
+    <input id="axisColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <br>
+</div>
+
+<button type="button" class="collapsible">General component options</button>
+<div class="content" style="display: none">
+    <input type="checkbox" id="border">
+    <label for="border">Draw border? </label>
+    <input id="borderColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <input type="checkbox" id="background">
+    <label for="background">Draw background? </label>
+    <input id="backGroundColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+    <label for="themeName">Theme name </label>
+    <select id="themeName" style="width: 50%"></select>
+    <br>
+    <input type="checkbox" id="setDefaultFont">
+    <label for="defaultFontName">Default font </label>
+    <input id="defaultFontName" type="text" style="width: 25%">
+    <input id="defaultFontSize" type="text" style="width: 10%">
+    <label for="defaultFontBold">bold? </label>
+    <input id="defaultFontBold" type="checkbox">
+    <label for="defaultFontItalic">italic? </label>
+    <input id="defaultFontItalic" type="checkbox">
+    <br>
+    <input type="checkbox" id="setDefaultColor">
+    <label for="defaultColor">Default color </label>
+    <input id="defaultColor" type="color" style="width: 50%;horiz-align: right;border: none transparent">
+    <br>
+
+    <br>
+</div>
+
+<button type="button" class="collapsible">Layout options</button>
+<div class="content" style="display: none">
+    <!-- Left alignment -->
+    <fieldset style="border-width: 1px;border-color: #777777">
+        <Legend>Left alignment</Legend>
+        <label for="leftEnabled">Left aligned</label><input type="checkbox" id="leftEnabled">
+        <label for="leftObjectName"> to </label>
+        <select id="leftObjectName" style="width: 50%"></select><br>
+        <label for="leftOffset">Offset: </label><input type="text" id="leftOffset" style="width: 20%">
+        <label for="leftPercentage">Percentage: </label><input type="text" id="leftPercentage" style="width: 20%">
+        <label for="leftAlignment">From </label><select id="leftAlignment" style="width: 20%"></select><br>
+    </fieldset>
+    <!-- Right alignment -->
+    <fieldset style="border-width: 1px;border-color: #777777">
+        <Legend>Right alignment</Legend>
+        <label for="rightEnabled">Right aligned</label><input type="checkbox" id="rightEnabled">
+        <label for="rightObjectName"> to: </label>
+        <select id="rightObjectName" style="width: 50%"></select><br>
+        <label for="rightOffset">Offset: </label><input type="text" id="rightOffset" style="width: 20%">
+        <label for="rightPercentage">Percentage: </label><input type="text" id="rightPercentage" style="width: 20%">
+        <label for="rightAlignment">From </label><select id="rightAlignment" style="width: 20%"></select><br>
+    </fieldset>
+    <!-- Top alignment -->
+    <fieldset style="border-width: 1px;border-color: #777777">
+        <Legend>Top alignment</Legend>
+        <label for="topEnabled">Top aligned</label><input type="checkbox" id="topEnabled">
+        <label for="topObjectName"> to: </label>
+        <select id="topObjectName" style="width: 50%"></select><br>
+        <label for="topOffset">Offset: </label><input type="text" id="topOffset" style="width: 20%">
+        <label for="topPercentage">Percentage: </label><input type="text" id="topPercentage" style="width: 20%">
+        <label for="topAlignment">From </label><select id="topAlignment" style="width: 20%"></select><br>
+    </fieldset>
+    <!-- Bottom alignment -->
+    <fieldset style="border-width: 1px;border-color: #777777">
+        <Legend>Bottom alignment</Legend>
+        <label for="bottomEnabled">Bottom aligned</label><input type="checkbox" id="bottomEnabled">
+        <label for="bottomObjectName"> to: </label>
+        <select id="bottomObjectName" style="width: 50%"></select><br>
+        <label for="bottomOffset">Offset: </label><input type="text" id="bottomOffset" style="width: 20%">
+        <label for="bottomPercentage">Percentage: </label><input type="text" id="bottomPercentage" style="width: 20%">
+        <label for="bottomAlignment">From </label><select id="bottomAlignment" style="width: 20%"></select><br>
+    </fieldset>
+    <br>
+</div>
+
+<!-- Buttons at the bottom -->
+<br>
+<button type="button" id="editButtonSave" onclick="saveComponent()">Save</button>
+<button type="button" id="editButtonClose" onclick="closeComponent()">Close</button>
+
+<!-- The script which will initialize drop-down boxes and so on.
+-->
+<script id="initScript">
+    setSelectOptions('sourceConnectorName', connectorNames);
+    setSelectOptions('themeName', themeNames);
+    setSelectOptions('topObjectName', componentNames);
+    setSelectOptions('leftObjectName', componentNames);
+    setSelectOptions('rightObjectName', componentNames);
+    setSelectOptions('bottomObjectName', componentNames);
+    setSelectOptions("leftAlignment", HORIZONTAL_ALIGNMENTS);
+    setSelectOptions("rightAlignment", HORIZONTAL_ALIGNMENTS);
+    setSelectOptions("topAlignment", VERTICAL_ALIGNMENTS);
+    setSelectOptions("bottomAlignment", VERTICAL_ALIGNMENTS);
+
+    // The collapsible sections...
+    //
+    $('.collapsible').click(function () {
+            let c = $(this).next();
+            console.log('First child display: ' + c.css('display'));
+            if (c.css('display') === "block") {
+                c.css('display', 'none');
+            } else {
+                c.css('display', 'block');
+            }
+        }
+    );
+</script>
+
+<!-- The script which will put values from componentJson on all the input fields
+-->
+<script id="loadScript">
+    let iComponent = componentJson["component"][componentPluginId];
+    document.getElementById("presentationName").value = presentationName;
+    setElement(componentJson, "componentName", "name");
+
+    // Input data
+    //
+    // The data section
+    //
+    let sourceConnectorName = iComponent["sourceConnectorName"]
+    let sourceConnectorColumnNames = getConnectorColumnNames(sourceConnectorName);
+    setElement(iComponent, "sourceConnectorName");
+    setColumns(iComponent, "horizontalDimensions", "horizontalDimensions", "horizontal", sourceConnectorColumnNames);
+    setFacts(iComponent, "facts", "facts", "facts", sourceConnectorColumnNames);
+    setChecked(iComponent, "drawingCurvedTrendLine");
+    setElement(iComponent, "horizontalMargin");
+    setElement(iComponent, "verticalMargin");
+    setChecked(iComponent, "showingHorizontalLabels");
+    setElement(iComponent, "horizontalLabelInterval");
+    setChecked(iComponent, "showingVerticalLabels");
+    setChecked(iComponent, "showingAxisTicks");
+    setElement(iComponent, "dotSize");
+    setElement(iComponent, "lineWidth");
+    setElement(iComponent, "title");
+    setChecked(iComponent, "usingZeroBaseline");
+    setChecked(iComponent, "showingLegend");
+    setFont(iComponent, "horizontalDimensionsFont", "setHorizontalDimensionsFont", "horizontalDimensionsFont");
+    setColor(iComponent, "horizontalDimensionsColor", "setHorizontalDimensionsColor", "horizontalDimensions", "#000000");
+    setFont(iComponent, "factsFont", "setFactsFont", "factsFont");
+    setColor(iComponent, "factsColor", "setFactsColor", "facts", "#000000");
+    setColor(iComponent, "titleColor", "setTitleColor", "titleColor", "#000000");
+    setColor(iComponent, "gridColor", "setGridColor", "gridColor", "#000000");
+    setColor(iComponent, "axisColor", "setAxisColor", "axisColor", "#000000");
+
+    // General options
+    //
+    setElement(iComponent, "themeName");
+    setFont(iComponent, "defaultFont", "setDefaultFont", "defaultFont");
+    setColor(iComponent, "defaultColor", "setDefaultColor", "defaultColor", "#ffffff");
+    setColor(iComponent, "backGroundColor", "background", "backGroundColor", "#ffffff");
+    setColor(iComponent, "borderColor", "border", "borderColor", "#000000");
+
+    // Layout options
+    //
+    setLayout(componentJson, "left");
+    setLayout(componentJson, "right");
+    setLayout(componentJson, "top");
+    setLayout(componentJson, "bottom");
+</script>
+
+<script id="componentSaveScript">
+    let iComponent = componentJson["component"][componentPluginId];
+    componentJson["component"]["name"] = document.getElementById("componentName").value;
+
+    // Data
+    //
+    getElement(iComponent, "sourceConnectorName");
+    // TODO: getColumns(iComponent, "horizontalDimensions", "horizontalDimensions");
+    // TODO: getFacts()
+    getChecked(iComponent, "drawingCurvedTrendLine");
+    getElementInteger(iComponent, "horizontalMargin");
+    getElementInteger(iComponent, "verticalMargin");
+    getChecked(iComponent, "showingHorizontalLabels");
+    getElement(iComponent, "horizontalLabelInterval");
+    getChecked(iComponent, "showingVerticalLabels");
+    getChecked(iComponent, "showingAxisTicks");
+    getElementInteger(iComponent, "dotSize");
+    getElementInteger(iComponent, "lineWidth");
+    getElement(iComponent, "title");
+    getChecked(iComponent, "usingZeroBaseline");
+    getChecked(iComponent, "showingLegend");
+    getFont(iComponent, "horizontalDimensionsFont", "setHorizontalDimensionsFont", "horizontalDimensionsFont");
+    getColor(iComponent, "horizontalDimensionsColor", "setHorizontalDimensionsColor", "horizontalDimensions");
+    getFont(iComponent, "factsFont", "setFactsFont", "factsFont");
+    getColor(iComponent, "factsColor", "setFactsColor", "facts");
+    getColor(iComponent, "titleColor", "setTitleColor", "titleColor");
+    getColor(iComponent, "gridColor", "setGridColor", "gridColor");
+    getColor(iComponent, "axisColor", "setAxisColor", "axisColor");
+
+
+    // General settings
+    //
+    getColor(iComponent, "borderColor", "border", "borderColor");
+    getColor(iComponent, "backGroundColor", "background", "backGroundColor");
+    getElement(iComponent, "themeName", "themeName");
+    getFont(iComponent, "defaultFont", "setDefaultFont", "defaultFont");
+    getColor(iComponent, "defaultColor", "setDefaultColor", "defaultColor");
+
+    // Get the layout options
+    //
+    getLayout(componentJson, "left");
+    getLayout(componentJson, "right");
+    getLayout(componentJson, "top");
+    getLayout(componentJson, "bottom");
+</script>

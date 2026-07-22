@@ -1,0 +1,95 @@
+
+body {
+    horiz-align: left;
+    vertical-align: top;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* Add a black background color to the top navigation */
+.topNavigation {
+    background-color: #ccd;
+    overflow: hidden;
+}
+
+.sidePanel {
+    width: 0px;
+    height: 100%;
+    position: fixed; /* Stay in place */
+    z-index: 1;
+    top: 0;
+    left: 0;
+    line-height: 140%;
+    background-color: #ccccdd;
+    overflow-x: hidden; /* Disable horizontal scroll */
+    padding-top: 30px; /* Place content 60px from the top */
+    transition: 0.5s; /* 0.5 second transition effect */
+    scroll-behavior: auto;
+}
+
+/* Style the links inside the navigation bar */
+.topNavigation a {
+    float: left;
+    color: #222;
+    text-align: center;
+    padding: 8px 10px;
+    text-decoration: none;
+    font-size: 12px;
+    border-color: #111111;
+}
+
+/* Change the color of links on hover */
+.topNavigation a:hover {
+    background-color: #ddd;
+    color: black;
+}
+
+/* Add a color to the active/current link */
+.topNavigation a.active {
+    background-color: #ddf;
+    color: #111;
+}
+
+/* For the collapsible sections */
+.collapsible {
+    background-color: #dddddd;
+    color: #444;
+    cursor: pointer;
+    padding: 10px;
+    width: 100%;
+    border: 0;
+    text-align: left;
+    outline: none;
+    font-size: 15px;
+}
+
+.active, .collapsible:hover {
+    background-color: #bbb;
+}
+
+/* Style the collapsible content. Note: hidden by default */
+.content {
+    padding: 0 10px;
+    display: none;
+    overflow: hidden;
+    background-color: #f1f1f1;
+    border: 1px #333333;
+}
+
+table {
+    border: 1px solid #777777;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+td {
+    border-collapse: collapse;
+}
+
+tr td:last-child {
+    width: 1%;
+    white-space: nowrap;
+    border: 1px solid #777777;
+    border-collapse: collapse;
+}

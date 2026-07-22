@@ -9,6 +9,21 @@ public class ActionsRequest {
 
   public ActionsRequest() {}
 
+  @Override
+  public String toString() {
+    return "ActionsRequest{"
+        + "renderId='"
+        + renderId
+        + '\''
+        + ", pageNumber="
+        + pageNumber
+        + ", x="
+        + x
+        + ", y="
+        + y
+        + '}';
+  }
+
   /**
    * Gets renderId
    *
