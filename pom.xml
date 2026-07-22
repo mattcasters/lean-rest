@@ -23,6 +23,7 @@
     <jersey.version>3.1.9</jersey.version>
     <jetty.version>11.0.24</jetty.version>
     <jackson.version>2.18.2</jackson.version>
+    <lean.nexus.url>https://repository.data-hopper.com/repository/lean/</lean.nexus.url>
   </properties>
 
   <dependencies>
@@ -119,6 +120,19 @@
       <version>${lean.version}</version>
     </dependency>
   </dependencies>
+
+  <distributionManagement>
+    <repository>
+      <id>lean</id>
+      <name>Data Hopper Lean releases</name>
+      <url>${lean.nexus.url}</url>
+    </repository>
+    <snapshotRepository>
+      <id>lean</id>
+      <name>Data Hopper Lean snapshots</name>
+      <url>${lean.nexus.url}</url>
+    </snapshotRepository>
+  </distributionManagement>
 
   <build>
     <plugins>
