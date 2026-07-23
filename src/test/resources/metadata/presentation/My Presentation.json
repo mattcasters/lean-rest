@@ -1,7 +1,6 @@
 {
   "themes": [
     {
-      "shared": false,
       "backgroundColor": {
         "b": 255,
         "r": 255,
@@ -150,7 +149,6 @@
               "alignment": "RIGHT"
             }
           },
-          "shared": false,
           "component": {
             "LeanTableComponent": {
               "border": true,

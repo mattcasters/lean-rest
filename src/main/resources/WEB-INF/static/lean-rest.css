@@ -1537,9 +1537,9 @@ body.property-panel-open .presentation-title-bar {
     font-weight: 500;
 }
 
-/* ── Layout result feedback (component properties) ─────── */
+/* ── Layout result feedback (bottom of Layout options section) ─────── */
 .layout-result-panel {
-    margin: 8px 0 14px 0;
+    margin: 14px 0 6px 0;
     padding: 10px 12px;
     background: #eef2fa;
     border: 1px solid #8a9bc0;

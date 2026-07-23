@@ -10,7 +10,13 @@ let numberOfPages;
 let offset = {
     "x": 0,
     "y": 0
-}
+};
+
+/**
+ * Active page-view pan (middle-button drag or Ctrl/Meta + left drag).
+ * @type {null|{startClientX:number,startClientY:number,originOffsetX:number,originOffsetY:number}}
+ */
+let panState = null;
 
 /**
  * Copy-friendly error UI (browser alert() truncates and cannot select/copy easily).
@@ -318,17 +324,8 @@ function buildBaseToolbarIcons() {
             "file": "/lean/api/static/images/arrow-right.svg",
             "action": () => nextPage(),
             "enabled": () => renderPageNumber0 < renderPageCount - 1
-        },
-        {
-            "file": "/lean/api/static/images/arrow-up.svg",
-            "action": () => viewUp(),
-            "enabled": () => true
-        },
-        {
-            "file": "/lean/api/static/images/arrow-down.svg",
-            "action": () => viewDown(),
-            "enabled": () => true
         }
+        // Page pan is via middle-button drag or Ctrl/Meta + left drag (not toolbar arrows)
     ];
 }
 
@@ -393,39 +390,185 @@ function installHandlers() {
         handleMouseMoveActions(e);
     });
     element.mousedown((e) => {
-        if (e.button === 0) {
-            if (handleMouseLeftClickActions(e)) {
+        // Middle button, or Ctrl/Meta + left: pan the page view (esp. when zoomed)
+        if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
+            // Ignore pan starts on the toolbar icon strip
+            if (typeof ICON_SIZE === "number" && e.offsetY < ICON_SIZE) {
                 return;
-            } else {
-                // Move the page view around
-                //
-
             }
+            startPagePan(e);
+            return;
+        }
+        if (e.button === 0) {
+            handleMouseLeftClickActions(e);
         }
     });
-    // mouseup may land outside the canvas while dragging a component
+    // Avoid browser auto-scroll / tab behaviors on middle-click
+    element.on("auxclick", function (e) {
+        if (e.button === 1) {
+            e.preventDefault();
+        }
+    });
+    element.on("contextmenu", function (e) {
+        // Middle-button pan should not open a context menu mid-gesture on some platforms
+        if (panState) {
+            e.preventDefault();
+        }
+    });
+    // mouseup may land outside the canvas while dragging a component or panning
     $(document).mouseup((e) => {
+        if (panState) {
+            endPagePan(e);
+            return;
+        }
         if (isEditMode()
             && typeof window.leanEdit !== "undefined"
             && typeof window.leanEdit.handleCanvasMouseUp === "function") {
             window.leanEdit.handleCanvasMouseUp(e);
         }
     });
+    // Keep panning smooth if the pointer leaves the canvas
+    $(document).mousemove((e) => {
+        if (panState) {
+            updatePagePan(e);
+        }
+    });
+    // Scroll-wheel zoom centered on the cursor (non-passive so we can prevent page scroll)
+    canvas.addEventListener("wheel", handleWheelZoom, {passive: false});
+}
+
+/** Zoom limits for wheel / toolbar zoom. */
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 20;
+const ZOOM_STEP = 1.1;
+
+/**
+ * Effective draw scale for a given zoom level (mirrors {@link drawSvg}).
+ */
+function computeScaleForZoom(z) {
+    if (!image || !canvas || !image.width || !image.height) {
+        return z;
+    }
+    let canvasHeight = canvas.height - ICON_SIZE;
+    let canvasWidth = canvas.width;
+    let dpr = (typeof devicePixelRatio === "number" && devicePixelRatio > 0)
+        ? devicePixelRatio : 1;
+    let scaleX = z * canvasWidth / (image.width * dpr);
+    let scaleY = z * canvasHeight / (image.height * dpr);
+    return Math.min(scaleX, scaleY, z);
+}
+
+/**
+ * Zoom so the page point under canvas pixel (canvasX, canvasY) stays fixed on screen.
+ * Coordinates are CSS/canvas event space (same as offsetX/offsetY); y includes the toolbar strip.
+ */
+function zoomAtCanvasPoint(canvasX, canvasY, newZoom) {
+    if (!image) {
+        zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+        return;
+    }
+    newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+    let oldScale = (typeof scale === "number" && scale > 0)
+        ? scale
+        : computeScaleForZoom(zoom);
+    if (!(oldScale > 0)) {
+        oldScale = 1;
+    }
+
+    // Page coordinates under the cursor before the zoom change
+    let contentY = canvasY - ICON_SIZE;
+    // If the pointer is over the toolbar, anchor to the top of the page content
+    if (contentY < 0) {
+        contentY = 0;
+    }
+    let pageX = offset.x + canvasX / oldScale;
+    let pageY = offset.y + contentY / oldScale;
+
+    zoom = newZoom;
+    let newScale = computeScaleForZoom(zoom);
+    if (!(newScale > 0)) {
+        newScale = 1;
+    }
+
+    // Keep the same page point under the cursor after scale changes.
+    // Offset may go negative so the anchor stays fixed when zooming out near the origin.
+    offset.x = pageX - canvasX / newScale;
+    offset.y = pageY - contentY / newScale;
+
+    // scale is refreshed inside drawSvg; redraw page + component outlines
+    drawSvg();
+}
+
+/**
+ * Multiply current zoom by factor, anchored at a canvas point (default: content center).
+ */
+function zoomByFactor(factor, canvasX, canvasY) {
+    if (canvasX === undefined || canvasY === undefined) {
+        // Center of the page content area (CSS pixels; canvas is DPR-scaled for drawing)
+        let cssW = canvas ? (canvas.clientWidth || rect.width || canvas.width) : 0;
+        let cssH = canvas ? (canvas.clientHeight || rect.height || canvas.height) : 0;
+        canvasX = cssW / 2;
+        canvasY = ICON_SIZE + Math.max(0, (cssH - ICON_SIZE) / 2);
+    }
+    zoomAtCanvasPoint(canvasX, canvasY, zoom * factor);
 }
 
 function zoomIn() {
-    zoom *= 1.1;
-    drawSvg();
+    zoomByFactor(ZOOM_STEP);
 }
 
 function zoomOut() {
-    zoom /= 1.1;
-    drawSvg();
+    zoomByFactor(1 / ZOOM_STEP);
 }
 
 function zoom100() {
     zoom = 1.0;
+    offset.x = 0;
+    offset.y = 0;
     drawSvg();
+}
+
+/**
+ * Mouse / trackpad wheel: zoom in/out with the presentation anchored under the cursor.
+ */
+function handleWheelZoom(e) {
+    if (!image || !canvas) {
+        return;
+    }
+    // Don't zoom while middle/Ctrl-panning
+    if (panState) {
+        e.preventDefault();
+        return;
+    }
+    e.preventDefault();
+
+    let canvasX = e.offsetX;
+    let canvasY = e.offsetY;
+    // Fallback if offsetX is unavailable (some browsers on the canvas)
+    if (canvasX === undefined || canvasY === undefined
+        || (canvasX === 0 && canvasY === 0 && e.clientX)) {
+        let r = canvas.getBoundingClientRect();
+        canvasX = e.clientX - r.left;
+        canvasY = e.clientY - r.top;
+    }
+
+    // Normalize delta across wheel / lines / pages and trackpads
+    let delta = e.deltaY;
+    if (e.deltaMode === 1) {
+        // DOM_DELTA_LINE
+        delta *= 16;
+    } else if (e.deltaMode === 2) {
+        // DOM_DELTA_PAGE
+        delta *= 400;
+    }
+
+    // Scroll up / trackpad pinch-out (negative deltaY) → zoom in
+    // Use a smooth exponential for fine trackpad steps; still feels stepped for mouse wheels
+    let factor = Math.exp(-delta * 0.0018);
+    // Clamp one event so a huge trackpad flick doesn't jump too far
+    factor = Math.max(1 / (ZOOM_STEP * ZOOM_STEP), Math.min(ZOOM_STEP * ZOOM_STEP, factor));
+
+    zoomAtCanvasPoint(canvasX, canvasY, zoom * factor);
 }
 
 function openUrl(url) {
@@ -748,6 +891,11 @@ function invalidMouseLocation(x, y) {
 }
 
 function handleMouseMoveActions(event) {
+    // Page pan is driven by the document-level mousemove (works outside the canvas)
+    if (panState) {
+        return true;
+    }
+
     let x = correctX(event.offsetX);
     let y = correctY(event.offsetY);
 
@@ -1065,7 +1213,44 @@ function loadComponentDiagnostics(componentName, cachedSummary, cachedDetail) {
 }
 
 /**
+ * Resolve the collapsible "Layout options" content div (contains left/right/top/bottom).
+ * Falls back to null when layout fields are missing.
+ */
+function findLayoutSectionContent() {
+    let anchor = document.getElementById("leftEnabled")
+        || document.getElementById("topEnabled")
+        || document.getElementById("rightEnabled")
+        || document.getElementById("bottomEnabled");
+    if (!anchor) {
+        return null;
+    }
+    let el = anchor;
+    let editArea = document.getElementById("editArea");
+    while (el && el !== editArea) {
+        if (el.classList && el.classList.contains("content")) {
+            return el;
+        }
+        el = el.parentElement;
+    }
+    // Fallback: collapsible button titled "Layout options"
+    if (editArea) {
+        let buttons = editArea.querySelectorAll("button.collapsible");
+        for (let i = 0; i < buttons.length; i++) {
+            let title = (buttons[i].textContent || "").trim().toLowerCase();
+            if (title === "layout options" || title === "layout") {
+                let next = buttons[i].nextElementSibling;
+                if (next && next.classList && next.classList.contains("content")) {
+                    return next;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Layout feedback: human attachment lines + resolved geometry/pages from the server.
+ * Placed at the bottom of the Layout options section. Refreshed on Apply (see softReloadEditor).
  * Also wires live per-side hints while editing LAYOUT_SIDE fields.
  */
 function installLayoutFeedbackPanel(componentName) {
@@ -1085,13 +1270,14 @@ function installLayoutFeedbackPanel(componentName) {
         panel = document.createElement("div");
         panel.id = "layoutResultPanel";
         panel.className = "layout-result-panel";
-        // Insert after action bar or at top of form
-        let actionBar = editArea.querySelector(".form-action-bar");
-        if (actionBar && actionBar.nextSibling) {
-            editArea.insertBefore(panel, actionBar.nextSibling);
-        } else {
-            editArea.insertBefore(panel, editArea.firstChild);
-        }
+    }
+    // Always place at the bottom of the Layout options section (move if already elsewhere)
+    let layoutContent = findLayoutSectionContent();
+    if (layoutContent) {
+        layoutContent.appendChild(panel);
+    } else if (!panel.parentElement) {
+        // Fallback: end of form if layout section markup is unexpected
+        editArea.appendChild(panel);
     }
     panel.innerHTML = "<h4>Layout result</h4>"
         + "<p class=\"editor-hint\" id=\"layoutResultStatus\">Loading layout info...</p>"
@@ -1163,6 +1349,10 @@ function loadComponentLayoutInfo(componentName) {
     if (!componentName || typeof presentationName === "undefined") {
         return;
     }
+    let st = document.getElementById("layoutResultStatus");
+    if (st) {
+        st.textContent = "Refreshing layout info...";
+    }
     $.ajax({
         url: API_BASE + "edit/presentation/" + encodeURIComponent(presentationName)
             + "/components/" + encodeURIComponent(componentName) + "/layout-info",
@@ -1172,9 +1362,9 @@ function loadComponentLayoutInfo(componentName) {
             renderLayoutResultPanel(data);
         },
         error: function (xhr) {
-            let st = document.getElementById("layoutResultStatus");
-            if (st) {
-                st.textContent = "Could not load layout info: "
+            let statusEl = document.getElementById("layoutResultStatus");
+            if (statusEl) {
+                statusEl.textContent = "Could not load layout info: "
                     + ((xhr && xhr.responseText) ? xhr.responseText : xhr.status);
             }
         }
@@ -1428,10 +1618,15 @@ function onCtrlLeftClick(requestData) {
 
 
 function handleMouseLeftClickActions(e) {
+    // Ctrl/Meta + left is reserved for page pan (handled in mousedown)
+    if (e.ctrlKey || e.metaKey) {
+        return false;
+    }
+
     // See if it's a toolbar icon
     //
     if (handleToolbarIconClick(e)) {
-        return;
+        return true;
     }
 
     let x = correctX(e.offsetX);
@@ -1456,10 +1651,93 @@ function handleMouseLeftClickActions(e) {
             return true;
         }
         onCtrlLeftClick(requestData);
+        return true;
     } else {
         // View: interaction navigation only (no structural edit)
         onLeftClick(requestData);
+        return true;
     }
+}
+
+/**
+ * Begin panning the page view (grab-drag). Offset is in page/image space.
+ */
+function startPagePan(e) {
+    if (e && typeof e.preventDefault === "function") {
+        e.preventDefault();
+    }
+    // Do not start a component drag while panning
+    if (isEditMode()
+        && typeof window.leanEdit !== "undefined"
+        && typeof window.leanEdit.handleCanvasMouseUp === "function"
+        && typeof window.leanEdit.isDragging === "function"
+        && window.leanEdit.isDragging()) {
+        window.leanEdit.handleCanvasMouseUp(e);
+    }
+    panState = {
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        originOffsetX: offset.x,
+        originOffsetY: offset.y
+    };
+    if (canvas) {
+        canvas.style.cursor = "grabbing";
+    }
+}
+
+/**
+ * While panning: update offset and redraw page + component outlines.
+ * @returns {boolean} true if a pan is active
+ */
+function updatePagePan(e) {
+    if (!panState) {
+        return false;
+    }
+    if (e && typeof e.preventDefault === "function") {
+        e.preventDefault();
+    }
+    let sc = (typeof scale === "number" && scale > 0) ? scale : 1;
+    let dx = e.clientX - panState.startClientX;
+    let dy = e.clientY - panState.startClientY;
+    // Grab-style: content follows the pointer
+    offset.x = panState.originOffsetX - dx / sc;
+    offset.y = panState.originOffsetY - dy / sc;
+    if (offset.x < 0) {
+        offset.x = 0;
+    }
+    if (offset.y < 0) {
+        offset.y = 0;
+    }
+    // Live redraw: page image, region outlines, selection/hover overlays
+    if (typeof drawSvg === "function") {
+        drawSvg();
+    }
+    return true;
+}
+
+/**
+ * End pan and do a final page-view redraw.
+ */
+function endPagePan(e) {
+    if (!panState) {
+        return;
+    }
+    // Apply last position if the event still has coordinates
+    if (e && typeof e.clientX === "number") {
+        updatePagePan(e);
+    }
+    panState = null;
+    if (canvas) {
+        canvas.style.cursor = "";
+    }
+    if (typeof drawSvg === "function") {
+        drawSvg();
+    }
+}
+
+/** @returns {boolean} true while the page view is being panned */
+function isPagePanning() {
+    return !!panState;
 }
 
 // Open the presentation with the given name
@@ -1529,19 +1807,6 @@ function previousPage() {
         return;
     }
     window.open(API_BASE + "render/page/" + renderId + "/HTML/" + prev + "/", "_self");
-}
-
-function viewDown() {
-    offset.y += 25;
-    drawSvg();
-}
-
-function viewUp() {
-    offset.y -= 25;
-    if (offset.y < 0) {
-        offset.y = 0;
-    }
-    drawSvg();
 }
 
 function correctX(value) {
@@ -2043,6 +2308,50 @@ function createText(id, value, style) {
         + String(v).replace(/"/g, "&quot;") + '"' + styleAttr + ">";
 }
 
+/**
+ * Display value for a table/fact column width field.
+ * {@code 0} / empty means auto-detect from content — show blank in the panel.
+ */
+function formatColumnWidthInputValue(width) {
+    if (width === null || width === undefined || width === "") {
+        return "";
+    }
+    let n = Number(width);
+    if (!isNaN(n) && n === 0) {
+        return "";
+    }
+    return width;
+}
+
+/**
+ * Parse width from the column properties panel. Blank / invalid / non-positive → 0 (auto).
+ */
+function parseColumnWidthInputValue(width) {
+    if (width === null || width === undefined) {
+        return 0;
+    }
+    let s = String(width).trim();
+    if (s === "") {
+        return 0;
+    }
+    let n = parseInt(s, 10);
+    if (isNaN(n) || n <= 0) {
+        return 0;
+    }
+    return n;
+}
+
+/**
+ * Compact width text field: blank when auto (0), placeholder hints at auto-detect.
+ */
+function createColumnWidthText(id, width) {
+    let v = formatColumnWidthInputValue(width);
+    return '<input type="text" id="' + id + '" value="'
+        + String(v).replace(/"/g, "&quot;")
+        + '" style="width: 4em" placeholder="auto"'
+        + ' title="Leave blank for automatic column width; enter a positive pixel width to fix the column">';
+}
+
 function createCheckBox(id, value) {
     let checked = (value === true || value === "true") ? " checked" : "";
     return '<input type="checkbox" id="' + id + '"' + checked + '>';
@@ -2252,7 +2561,7 @@ function softReloadEditor(keepSelectionName) {
             if (typeof window.leanEdit !== "undefined" && typeof window.leanEdit.refresh === "function") {
                 window.leanEdit.refresh(keepSelectionName);
             }
-            // Refresh isolated component preview + error diagnostics if property panel is open
+            // Refresh isolated component preview, diagnostics, and layout result if property panel is open
             if (document.body.classList.contains("property-panel-open")
                 && keepSelectionName) {
                 if (typeof loadComponentPreview === "function") {
@@ -2260,6 +2569,11 @@ function softReloadEditor(keepSelectionName) {
                 }
                 if (typeof loadComponentDiagnostics === "function") {
                     loadComponentDiagnostics(keepSelectionName, null, null);
+                }
+                // Update Layout result after Apply (saved attachments + re-layout)
+                if (typeof loadComponentLayoutInfo === "function"
+                    && document.getElementById("layoutResultPanel")) {
+                    loadComponentLayoutInfo(keepSelectionName);
                 }
             }
         },
@@ -2447,7 +2761,7 @@ function getConnectorPluginInfoMap() {
 }
 
 /**
- * @returns {Array.<{name:string, pluginId:string|null, shared:boolean}>}
+ * @returns {Array.<{name:string, pluginId:string|null}>}
  */
 function getConnectorSummaries() {
     let rows = [];
@@ -2464,7 +2778,7 @@ function getConnectorSummaries() {
             let names = getConnectorNames();
             for (let i = 0; i < names.length; i++) {
                 if (names[i]) {
-                    rows.push({name: names[i], pluginId: null, shared: false});
+                    rows.push({name: names[i], pluginId: null});
                 }
             }
         }
@@ -2607,7 +2921,7 @@ function editConnectorsList() {
 }
 
 /**
- * Delete a shared connector after confirmation, then refresh the list.
+ * Delete a connector after confirmation, then refresh the list.
  */
 function deleteConnectorByName(name) {
     if (!name) {
@@ -2718,7 +3032,6 @@ function createNewConnector() {
     let name = "New " + pluginId;
     connectorJson = {
         "name": name,
-        "shared": false,
         "connector": {}
     };
     connectorJson["connector"][pluginId] = {"pluginId": pluginId};
@@ -3821,12 +4134,63 @@ function toInteger(value) {
     return parseInt(value);
 }
 
+/**
+ * Common font names suggested on FONT property fields (datalist).
+ * Includes one fixed-width face (Courier New) for labels/tables/code-style text.
+ */
+const COMMON_FONT_NAMES = [
+    "Arial",
+    "Helvetica",
+    "Times New Roman",
+    "Georgia",
+    "Verdana",
+    "Tahoma",
+    "Calibri",
+    "Trebuchet MS",
+    "Garamond",
+    "Courier New"
+];
+
+/** DOM id of the shared font-name suggestion list (one per page). */
+const FONT_NAME_DATALIST_ID = "lean-common-font-names";
+
+/**
+ * Ensure a document-level {@code <datalist>} of {@link COMMON_FONT_NAMES} exists
+ * so font name inputs can reference it via {@code list="..."}.
+ * @returns {string} datalist element id
+ */
+function ensureFontNameSuggestionsDatalist() {
+    let existing = document.getElementById(FONT_NAME_DATALIST_ID);
+    if (existing) {
+        return FONT_NAME_DATALIST_ID;
+    }
+    let list = document.createElement("datalist");
+    list.id = FONT_NAME_DATALIST_ID;
+    for (let i = 0; i < COMMON_FONT_NAMES.length; i++) {
+        let opt = document.createElement("option");
+        opt.value = COMMON_FONT_NAMES[i];
+        list.appendChild(opt);
+    }
+    document.body.appendChild(list);
+    return FONT_NAME_DATALIST_ID;
+}
+
 function setFont(iComponent, jsonId, setId, idPrefix) {
     try {
         let srcFont = iComponent[jsonId];
         if (srcFont !== null) {
             document.getElementById(setId).checked = true;
-            document.getElementById(idPrefix + "Name").value = srcFont["fontName"];
+            let nameEl = document.getElementById(idPrefix + "Name");
+            if (nameEl) {
+                nameEl.value = srcFont["fontName"];
+                // Attach suggestions if this is a plain text font field
+                let listId = ensureFontNameSuggestionsDatalist();
+                if (!nameEl.getAttribute("list")) {
+                    nameEl.setAttribute("list", listId);
+                    nameEl.setAttribute("autocomplete", "off");
+                    nameEl.setAttribute("placeholder", "Font name");
+                }
+            }
             document.getElementById(idPrefix + "Size").value = srcFont["fontSize"];
             document.getElementById(idPrefix + "Bold").checked = srcFont["bold"];
             document.getElementById(idPrefix + "Italic").checked = srcFont["italic"];
@@ -4193,11 +4557,10 @@ function createColumnsRow(table, column, i, columnPrefix, connectorColumnNames) 
         createTableColumnId(columnPrefix, "Header", i),
         column["headerValue"]
     );
-    // Width / Format: compact fields (~1/4 of a default text input)
-    row.insertCell(index++).innerHTML = createText(
+    // Width: blank = auto-detect; positive = fixed pixels when drawing the table
+    row.insertCell(index++).innerHTML = createColumnWidthText(
         createTableColumnId(columnPrefix, "Width", i),
-        column["width"],
-        "width: 4em"
+        column["width"]
     );
     row.insertCell(index++).innerHTML = createSelection(
         createTableColumnId(columnPrefix, "HorizontalAlignment", i),
@@ -4286,11 +4649,10 @@ function createFactsRow(table, column, i, columnPrefix, connectorColumnNames) {
         createTableColumnId(columnPrefix, "Header", i),
         column["headerValue"]
     );
-    // Width / Format: compact fields (~1/4 of a default text input)
-    row.insertCell(index++).innerHTML = createText(
+    // Width: blank = auto-detect; positive = fixed pixels when drawing
+    row.insertCell(index++).innerHTML = createColumnWidthText(
         createTableColumnId(columnPrefix, "Width", i),
-        column["width"],
-        "width: 4em"
+        column["width"]
     );
     row.insertCell(index++).innerHTML = createSelection(
         createTableColumnId(columnPrefix, "HorizontalAlignment", i),
@@ -4389,8 +4751,8 @@ function getColumnsRow(row) {
         let index = 0;
         column["columnName"] = cellControlValue(row.cells[index++]);
         column["headerValue"] = cellControlValue(row.cells[index++]);
-        let width = cellControlValue(row.cells[index++]);
-        column["width"] = width === null || width === "" ? 0 : parseInt(width);
+        // Blank / zero → auto width when drawing; positive → fixed pixel width
+        column["width"] = parseColumnWidthInputValue(cellControlValue(row.cells[index++]));
         let hAlign = cellControlValue(row.cells[index++]);
         let vAlign = cellControlValue(row.cells[index++]);
         // Never write null/empty enums — Hop leaves them null and switch(enum) NPEs
@@ -6337,11 +6699,23 @@ function appendNestedFieldControl(container, prefix, field, pluginValues) {
         let size = has ? (val.fontSize || "") : "";
         let bold = has && val.bold ? " checked" : "";
         let italic = has && val.italic ? " checked" : "";
+        let listId = ensureFontNameSuggestionsDatalist();
+        let safeName = String(name)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;");
+        let safeSize = String(size)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;");
         container.insertAdjacentHTML("beforeend",
             '<input type="checkbox" id="' + setId + '"' + (has ? " checked" : "") + "> "
             + "<label>" + label + ' </label>'
-            + '<input type="text" id="' + domId + 'Name" value="' + name + '" style="width:25%">'
-            + '<input type="text" id="' + domId + 'Size" value="' + size + '" style="width:10%">'
+            + '<input type="text" id="' + domId + 'Name" value="' + safeName + '"'
+            + ' list="' + listId + '" autocomplete="off" placeholder="Font name"'
+            + ' title="Common fonts: ' + COMMON_FONT_NAMES.join(", ") + '"'
+            + ' style="width:25%">'
+            + '<input type="text" id="' + domId + 'Size" value="' + safeSize + '" style="width:10%"'
+            + ' placeholder="Size" title="Font size">'
             + " bold<input type=\"checkbox\" id=\"" + domId + "Bold\"" + bold + ">"
             + " italic<input type=\"checkbox\" id=\"" + domId + "Italic\"" + italic + "><br>");
         return;
@@ -6450,7 +6824,6 @@ function readNestedComponentFromPanel(prefix) {
     pluginValues["pluginId"] = pluginId;
     return {
         "name": nameEl.value,
-        "shared": false,
         "layout": readNestedLayout(prefix),
         "component": (function () {
             let m = {};

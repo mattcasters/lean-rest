@@ -114,7 +114,6 @@
         "showingHorizontalSubtotals" : false,
         "showingVerticalSubtotals" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -215,7 +214,6 @@
         "showingLegend" : false,
         "drawingCurvedTrendLine" : true
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -324,7 +322,6 @@
         "showingLegend" : false,
         "drawingCurvedTrendLine" : true
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -365,7 +362,6 @@
         "filename" : "lean-logo.svg",
         "scaleType" : "MAX"
       },
-      "shared" : false,
       "rotation" : "15",
       "transparency" : null,
       "clipSize" : null
@@ -416,7 +412,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -455,7 +450,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -506,7 +500,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -545,7 +538,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -586,7 +578,6 @@
         "filename" : "lean-logo.svg",
         "scaleType" : "MIN"
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -704,8 +695,7 @@
       "r" : 200,
       "g" : 200,
       "b" : 200
-    },
-    "shared" : false
+    }
   } ],
   "defaultThemeName" : "Default",
   "connectors" : [ {
@@ -714,8 +704,7 @@
       "pluginId" : "SampleDataConnector",
       "sourceConnectorName" : null,
       "rowCount" : 1000
-    },
-    "shared" : false
+    }
   } ],
   "interactions" : [ {
     "method" : {

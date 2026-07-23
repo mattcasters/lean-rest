@@ -1,7 +1,6 @@
 {
   "themes": [
     {
-      "shared": false,
       "backgroundColor": {
         "b": 255,
         "r": 255,
@@ -153,7 +152,6 @@
               "alignment": "DEFAULT"
             }
           },
-          "shared": false,
           "component": {
             "LeanLineChartComponent": {
               "borderColor": {
@@ -284,7 +282,6 @@
             "alignment": "LEFT"
           }
         },
-        "shared": false,
         "component": {
           "LeanLabelComponent": {
             "border": false,
@@ -327,7 +324,6 @@
             "alignment": "RIGHT"
           }
         },
-        "shared": false,
         "component": {
           "LeanLabelComponent": {
             "border": false,
@@ -386,7 +382,6 @@
             "alignment": "RIGHT"
           }
         },
-        "shared": false,
         "component": {
           "LeanImageComponent": {
             "border": false,
@@ -417,7 +412,6 @@
             "alignment": "CENTER"
           }
         },
-        "shared": false,
         "component": {
           "LeanLabelComponent": {
             "border": false,
@@ -461,7 +455,6 @@
             "alignment": "LEFT"
           }
         },
-        "shared": false,
         "component": {
           "LeanLabelComponent": {
             "border": false,

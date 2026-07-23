@@ -1,6 +1,5 @@
 {
   "name": "hop-list-execution-durations",
-  "shared": false,
   "connector": {
     "LeanRestConnector": {
       "pluginId": "LeanRestConnector",

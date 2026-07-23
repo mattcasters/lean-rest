@@ -1,7 +1,6 @@
 {
   "themes": [
     {
-      "shared": false,
       "backgroundColor": {
         "b": 255,
         "r": 255,
@@ -140,7 +139,6 @@
               "alignment": "LEFT"
             }
           },
-          "shared": false,
           "component": {
             "LeanBarChartComponent": {
               "borderColor": {
@@ -194,7 +192,6 @@
               "alignment": "LEFT"
             }
           },
-          "shared": false,
           "component": {
             "LeanLabelComponent": {
               "border": false,

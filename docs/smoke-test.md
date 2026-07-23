@@ -111,12 +111,12 @@ curl -sS "$BASE/plugins/connectors"
 | `POST .../render/connector/describe/` (`Sample Data`) | **200**, JSON array of value meta (`name`, `type`, …) |
 | `GET .../edit/connector/SqlConnector/` | **200**, HTML with Apply/Close and `connectorSaveScript` |
 | `POST .../edit/connector/preview/` | **200**, `{ ok, maxRows, input?, output, error }` with sample rows |
-| `GET .../metadata/connectors/summary/` | **200**, `[{ name, pluginId, shared }, …]` for icon table |
+| `GET .../metadata/connectors/summary/` | **200**, `[{ name, pluginId }, …]` for icon table |
 
 ```bash
 # Connector studio preview (inline JSON; does not save)
 curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"maxRows":5,"leanConnectorJson":"{\"name\":\"preview-sample\",\"shared\":false,\"connector\":{\"SampleDataConnector\":{\"pluginId\":\"SampleDataConnector\",\"rowCount\":10}}}"}' \
+  -d '{"maxRows":5,"leanConnectorJson":"{\"name\":\"preview-sample\",\"connector\":{\"SampleDataConnector\":{\"pluginId\":\"SampleDataConnector\",\"rowCount\":10}}}"}' \
   "$BASE/edit/connector/preview/" | head -c 400; echo
 
 # Connector admin summaries (icons / types)
@@ -132,7 +132,7 @@ curl -sS "$BASE/metadata/connectors/summary/" | head -c 300; echo
 Manual check:
 
 1. Open `products` in edit mode → page 1 should show **ProductsTable** and **Bar Chart** to its right (`x ≈ table.right`).
-2. Open Bar Chart properties → **Layout result** panel shows resolved box, pages, attachment summaries, and multi-page reference hints.
+2. Open Bar Chart properties → expand **Layout options** → **Layout result** at the bottom shows resolved box, pages, attachment summaries, and multi-page reference hints. Change layout and **Apply** → Layout result refreshes from the new layout.
 3. `combo-test` still shows Crosstab + charts on a single page.
 
 ### Presentation properties (interactions + parameter mappings)

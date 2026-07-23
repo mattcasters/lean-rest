@@ -6,6 +6,7 @@
  * PR3: delete, name-based properties, soft re-render after mutations
  * PR4: palette drag/drop create + toolbar Add
  * PR5: offset-only drag of existing components (outline + nudge API)
+ * PR6: edge-hover resize (cursors + outline + resize API)
  */
 (function () {
     if (typeof leanMode === "undefined" || leanMode !== "edit") {
@@ -23,20 +24,31 @@
     let selectedPageRole = "page";
     let hoverComponentName = null;
     let lastHoverName = null;
+    /** @type {null|{n:boolean,s:boolean,e:boolean,w:boolean}} last edge under pointer (for cursor) */
+    let lastHoverEdges = null;
     let redrawScheduled = false;
     let pendingSelectName = null;
 
     /**
-     * Active pointer drag for moving a component (offset-only nudge).
+     * Active pointer interaction: move (nudge) or resize.
      * @type {null|{
+     *   mode:"move"|"resize",
      *   drawnName:string, metadataName:string, pageRole:string,
      *   startPageX:number, startPageY:number,
      *   originGeo:{x,y,width,height},
-     *   dx:number, dy:number, dragging:boolean, openPropsOnUp:boolean
+     *   dx:number, dy:number,
+     *   edges?:{n:boolean,s:boolean,e:boolean,w:boolean},
+     *   liveGeo?:{x,y,width,height},
+     *   dragging:boolean, openPropsOnUp:boolean,
+     *   requestData?:object
      * }}
      */
     let dragState = null;
     const DRAG_THRESHOLD_PX = 4;
+    /** Screen-pixel hit zone for component edges (converted to page space via scale). */
+    const EDGE_HIT_SCREEN_PX = 8;
+    /** Minimum component size after a resize (page pixels). */
+    const MIN_RESIZE_PX = 10;
 
     function initEditShell() {
         loadComponentPalette();
@@ -506,6 +518,161 @@
         return null;
     }
 
+    /**
+     * Page-space distance that counts as "on the edge" (stable under zoom).
+     */
+    function edgeHitTolerancePage() {
+        let sc = (typeof scale === "number" && scale > 0) ? scale : 1;
+        return Math.max(3, EDGE_HIT_SCREEN_PX / sc);
+    }
+
+    /**
+     * Which edges of {@code geo} are near (pageX, pageY). Only edges of a box that
+     * actually contains the point (expanded by tolerance) are considered.
+     * @returns {{n:boolean,s:boolean,e:boolean,w:boolean}|null}
+     */
+    function edgesNearPoint(geo, pageX, pageY) {
+        if (!geo) {
+            return null;
+        }
+        let tol = edgeHitTolerancePage();
+        let x0 = geo.x;
+        let y0 = geo.y;
+        let x1 = geo.x + geo.width;
+        let y1 = geo.y + geo.height;
+        // Must be inside the box expanded by tol (so corners are hittable slightly outside)
+        if (pageX < x0 - tol || pageX > x1 + tol || pageY < y0 - tol || pageY > y1 + tol) {
+            return null;
+        }
+        let w = pageX >= x0 - tol && pageX <= x0 + tol;
+        let e = pageX >= x1 - tol && pageX <= x1 + tol;
+        let n = pageY >= y0 - tol && pageY <= y0 + tol;
+        let s = pageY >= y1 - tol && pageY <= y1 + tol;
+        // Interior only (no edge) → not a resize hit
+        if (!w && !e && !n && !s) {
+            return null;
+        }
+        // Ignore opposite-edge doubles on tiny boxes
+        if (w && e) {
+            w = pageX < (x0 + x1) / 2;
+            e = !w;
+        }
+        if (n && s) {
+            n = pageY < (y0 + y1) / 2;
+            s = !n;
+        }
+        return {n: n, s: s, e: e, w: w};
+    }
+
+    /**
+     * Prefer selected component edges, else top-most component under the pointer.
+     * Edges slightly outside the fill (within tol) still count.
+     * @returns {{entry:object, edges:{n,s,e,w}}|null}
+     */
+    function hitTestResize(pageX, pageY) {
+        let tol = edgeHitTolerancePage();
+        // Selected component first (easier to grab handles of the current selection)
+        if (selectedComponentName) {
+            let sel = findGeometry(selectedComponentName);
+            if (sel && sel.geometry) {
+                let edges = edgesNearPoint(sel.geometry, pageX, pageY);
+                if (edges) {
+                    return {entry: sel, edges: edges};
+                }
+            }
+        }
+        // Top-most geometry whose expanded bounds contain the pointer
+        for (let i = componentGeometries.length - 1; i >= 0; i--) {
+            let entry = componentGeometries[i];
+            let g = entry.geometry;
+            if (!g) {
+                continue;
+            }
+            if (pageX < g.x - tol || pageX > g.x + g.width + tol
+                || pageY < g.y - tol || pageY > g.y + g.height + tol) {
+                continue;
+            }
+            let edges = edgesNearPoint(g, pageX, pageY);
+            if (edges) {
+                return {entry: entry, edges: edges};
+            }
+        }
+        return null;
+    }
+
+    function cursorForEdges(edges) {
+        if (!edges) {
+            return null;
+        }
+        if (edges.n && edges.w) {
+            return "nwse-resize";
+        }
+        if (edges.n && edges.e) {
+            return "nesw-resize";
+        }
+        if (edges.s && edges.w) {
+            return "nesw-resize";
+        }
+        if (edges.s && edges.e) {
+            return "nwse-resize";
+        }
+        if (edges.n || edges.s) {
+            return "ns-resize";
+        }
+        if (edges.e || edges.w) {
+            return "ew-resize";
+        }
+        return null;
+    }
+
+    /**
+     * Compute live geometry while resizing from origin + pointer delta and active edges.
+     */
+    function computeResizeGeo(origin, edges, dx, dy) {
+        let x = origin.x;
+        let y = origin.y;
+        let w = origin.width;
+        let h = origin.height;
+        if (edges.e) {
+            w = origin.width + dx;
+        }
+        if (edges.w) {
+            x = origin.x + dx;
+            w = origin.width - dx;
+        }
+        if (edges.s) {
+            h = origin.height + dy;
+        }
+        if (edges.n) {
+            y = origin.y + dy;
+            h = origin.height - dy;
+        }
+        // Clamp minimum size; keep the opposite edge fixed
+        if (w < MIN_RESIZE_PX) {
+            if (edges.w && !edges.e) {
+                x = origin.x + origin.width - MIN_RESIZE_PX;
+            }
+            w = MIN_RESIZE_PX;
+        }
+        if (h < MIN_RESIZE_PX) {
+            if (edges.n && !edges.s) {
+                y = origin.y + origin.height - MIN_RESIZE_PX;
+            }
+            h = MIN_RESIZE_PX;
+        }
+        return {x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h)};
+    }
+
+    function edgesEqual(a, b) {
+        if (a === b) {
+            return true;
+        }
+        if (!a || !b) {
+            return false;
+        }
+        return a.n === b.n && a.s === b.s && a.e === b.e && a.w === b.w;
+    }
+
     // ── Selection / hover ────────────────────────────────────────────────
 
     function resolvePageRoleForName(name) {
@@ -769,19 +936,42 @@
     // ── Mouse + overlay drawing ──────────────────────────────────────────
 
     function onPageMouseMove(pageX, pageY) {
-        // While dragging, cursor/hover are owned by the drag outline
+        // While dragging/resizing, cursor/hover are owned by the interaction
         if (dragState && dragState.dragging) {
             return;
         }
         if (pageX === null || pageX === undefined) {
-            if (hoverComponentName !== null) {
+            if (hoverComponentName !== null || lastHoverEdges !== null) {
                 hoverComponentName = null;
                 lastHoverName = null;
+                lastHoverEdges = null;
                 $("#svgCanvas").css("cursor", "default");
                 scheduleRedraw();
             }
             return;
         }
+        // Edge hit takes priority for resize cursors (selected edges, then top-most)
+        let resizeHit = hitTestResize(pageX, pageY);
+        if (resizeHit) {
+            let name = resizeHit.entry.componentName;
+            let edges = resizeHit.edges;
+            let cursor = cursorForEdges(edges) || "grab";
+            let nameChanged = name !== lastHoverName;
+            let edgesChanged = !edgesEqual(edges, lastHoverEdges);
+            if (nameChanged || edgesChanged) {
+                lastHoverName = name;
+                hoverComponentName = name;
+                lastHoverEdges = edges;
+                $("#svgCanvas").css("cursor", cursor);
+                if (nameChanged) {
+                    scheduleRedraw();
+                }
+            } else {
+                $("#svgCanvas").css("cursor", cursor);
+            }
+            return;
+        }
+        lastHoverEdges = null;
         let hit = hitTest(pageX, pageY);
         let name = hit ? hit.componentName : null;
         if (name !== lastHoverName) {
@@ -789,6 +979,8 @@
             hoverComponentName = name;
             $("#svgCanvas").css("cursor", name ? "grab" : "default");
             scheduleRedraw();
+        } else {
+            $("#svgCanvas").css("cursor", name ? "grab" : "default");
         }
     }
 
@@ -806,16 +998,21 @@
     }
 
     function drawOverlays(gcCtx, sc, off) {
-        // Live drag outline (ghost) — follows the pointer while moving a component
+        // Live move / resize outline (ghost)
         if (dragState && dragState.dragging && dragState.originGeo) {
-            let g = {
-                x: dragState.originGeo.x + dragState.dx,
-                y: dragState.originGeo.y + dragState.dy,
-                width: dragState.originGeo.width,
-                height: dragState.originGeo.height
-            };
+            let g;
+            if (dragState.mode === "resize" && dragState.liveGeo) {
+                g = dragState.liveGeo;
+            } else {
+                g = {
+                    x: dragState.originGeo.x + dragState.dx,
+                    y: dragState.originGeo.y + dragState.dy,
+                    width: dragState.originGeo.width,
+                    height: dragState.originGeo.height
+                };
+            }
             strokePageRect(gcCtx, g, sc, off, "rgba(30, 90, 200, 0.95)", 2, false, true);
-            // Dim original position
+            // Dim original position / size
             strokePageRect(
                 gcCtx, dragState.originGeo, sc, off, "rgba(30, 90, 200, 0.35)", 1, false, true);
             return;
@@ -871,8 +1068,8 @@
     }
 
     /**
-     * mousedown on canvas (edit mode): start potential drag / select.
-     * Click without drag still opens properties; drag past threshold moves.
+     * mousedown on canvas (edit mode): start potential move / resize / select.
+     * Click without drag still opens properties; drag past threshold moves or resizes.
      */
     function handleCanvasMouseDown(e, pageX, pageY, requestData) {
         if (document.body.classList.contains("property-panel-open")) {
@@ -885,6 +1082,52 @@
         if (typeof ICON_SIZE === "number" && e.offsetY < ICON_SIZE) {
             return;
         }
+        // Resize takes priority when the pointer is on an edge/corner
+        let resizeHit = hitTestResize(pageX, pageY);
+        if (resizeHit) {
+            let hit = resizeHit.entry;
+            if (hit.pageRole) {
+                selectedPageRole = hit.pageRole;
+            }
+            selectComponent(hit.componentName, false);
+            let geo = hit.geometry || {x: pageX, y: pageY, width: 40, height: 40};
+            dragState = {
+                mode: "resize",
+                drawnName: hit.componentName,
+                metadataName: hit.metadataName || hit.componentName,
+                pageRole: hit.pageRole || "page",
+                startPageX: pageX,
+                startPageY: pageY,
+                originGeo: {
+                    x: geo.x,
+                    y: geo.y,
+                    width: geo.width,
+                    height: geo.height
+                },
+                edges: {
+                    n: !!resizeHit.edges.n,
+                    s: !!resizeHit.edges.s,
+                    e: !!resizeHit.edges.e,
+                    w: !!resizeHit.edges.w
+                },
+                liveGeo: {
+                    x: geo.x,
+                    y: geo.y,
+                    width: geo.width,
+                    height: geo.height
+                },
+                dx: 0,
+                dy: 0,
+                dragging: false,
+                openPropsOnUp: true,
+                requestData: requestData
+            };
+            if (canvas) {
+                canvas.style.cursor = cursorForEdges(dragState.edges) || "grabbing";
+            }
+            return;
+        }
+
         let hit = hitTest(pageX, pageY);
         if (!hit) {
             clearSelection();
@@ -896,6 +1139,7 @@
         selectComponent(hit.componentName, false);
         let geo = hit.geometry || {x: pageX, y: pageY, width: 40, height: 40};
         dragState = {
+            mode: "move",
             drawnName: hit.componentName,
             metadataName: hit.metadataName || hit.componentName,
             pageRole: hit.pageRole || "page",
@@ -919,7 +1163,7 @@
     }
 
     /**
-     * @returns {boolean} true if the move was consumed by an active drag
+     * @returns {boolean} true if the move was consumed by an active drag/resize
      */
     function onCanvasMouseMove(event, pageX, pageY) {
         if (!dragState) {
@@ -946,8 +1190,16 @@
         if (dragState.dragging) {
             dragState.dx = dx;
             dragState.dy = dy;
-            // Highlight target band under the ghost (pointer position)
-            setActiveDropRegion(hitTestPageRegion(pageX, pageY));
+            if (dragState.mode === "resize" && dragState.edges) {
+                dragState.liveGeo = computeResizeGeo(
+                    dragState.originGeo, dragState.edges, dx, dy);
+                if (canvas) {
+                    canvas.style.cursor = cursorForEdges(dragState.edges) || "grabbing";
+                }
+            } else {
+                // Highlight target band under the ghost (pointer position) while moving
+                setActiveDropRegion(hitTestPageRegion(pageX, pageY));
+            }
             scheduleRedraw();
             return true;
         }
@@ -964,9 +1216,19 @@
         if (canvas) {
             canvas.style.cursor = "";
         }
-        if (state.dragging && (state.dx !== 0 || state.dy !== 0)) {
-            nudgeComponentOnServer(state);
-            return;
+        if (state.dragging) {
+            if (state.mode === "resize" && state.liveGeo && state.originGeo) {
+                let og = state.originGeo;
+                let lg = state.liveGeo;
+                if (lg.x !== og.x || lg.y !== og.y
+                    || lg.width !== og.width || lg.height !== og.height) {
+                    resizeComponentOnServer(state);
+                    return;
+                }
+            } else if (state.mode === "move" && (state.dx !== 0 || state.dy !== 0)) {
+                nudgeComponentOnServer(state);
+                return;
+            }
         }
         // Simple click: open properties for the selected component
         if (state.openPropsOnUp && state.requestData) {
@@ -1004,6 +1266,51 @@
                     showAjaxError("Move component failed", xhr, status, error);
                 } else {
                     alert("Move failed: " + (xhr.responseText || status));
+                }
+                scheduleRedraw();
+            }
+        });
+    }
+
+    function resizeComponentOnServer(state) {
+        let nameForApi = state.metadataName || state.drawnName;
+        let pathName = state.drawnName || nameForApi;
+        let og = state.originGeo;
+        let lg = state.liveGeo;
+        // Edge deltas in page space (what the server applies to layout attachments)
+        let dLeft = lg.x - og.x;
+        let dTop = lg.y - og.y;
+        let dRight = (lg.x + lg.width) - (og.x + og.width);
+        let dBottom = (lg.y + lg.height) - (og.y + og.height);
+        $.ajax({
+            url: API_BASE + "edit/presentation/" + encodeURIComponent(presentationName)
+                + "/components/" + encodeURIComponent(pathName) + "/resize/",
+            type: "POST",
+            contentType: "application/json; charset=utf-8",
+            data: JSON.stringify({
+                dLeft: dLeft,
+                dTop: dTop,
+                dRight: dRight,
+                dBottom: dBottom,
+                originX: og.x,
+                originY: og.y,
+                originWidth: og.width,
+                originHeight: og.height
+            }),
+            dataType: "json",
+            success: function (result) {
+                let keep = (result && result.name) ? result.name : nameForApi;
+                if (typeof softReloadEditor === "function") {
+                    softReloadEditor(keep);
+                } else if (typeof reloadPresentation === "function") {
+                    reloadPresentation();
+                }
+            },
+            error: function (xhr, status, error) {
+                if (typeof showAjaxError === "function") {
+                    showAjaxError("Resize component failed", xhr, status, error);
+                } else {
+                    alert("Resize failed: " + (xhr.responseText || status));
                 }
                 scheduleRedraw();
             }
@@ -1172,6 +1479,9 @@
         handleCanvasMouseUp: handleCanvasMouseUp,
         isDragging: function () {
             return !!(dragState && dragState.dragging);
+        },
+        isResizing: function () {
+            return !!(dragState && dragState.dragging && dragState.mode === "resize");
         },
         getPageRegions: getPageRegions,
         getActiveDropRegion: getActiveDropRegion,

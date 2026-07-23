@@ -134,7 +134,6 @@
                 "customHtml" : null,
                 "underline" : false
               },
-              "shared" : false,
               "rotation" : null,
               "transparency" : null,
               "clipSize" : null
@@ -243,20 +242,17 @@
                 "showingHorizontalSubtotals" : false,
                 "showingVerticalSubtotals" : false
               },
-              "shared" : false,
               "rotation" : null,
               "transparency" : null,
               "clipSize" : null
             } ]
           },
-          "shared" : false,
           "rotation" : null,
           "transparency" : null,
           "clipSize" : null
         },
         "verticalMargin" : 10
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -307,7 +303,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -346,7 +341,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -397,7 +391,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -436,7 +429,6 @@
         "customHtml" : null,
         "underline" : false
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -477,7 +469,6 @@
         "filename" : "lean-logo.svg",
         "scaleType" : "MIN"
       },
-      "shared" : false,
       "rotation" : null,
       "transparency" : null,
       "clipSize" : null
@@ -595,8 +586,7 @@
       "r" : 200,
       "g" : 200,
       "b" : 200
-    },
-    "shared" : false
+    }
   } ],
   "defaultThemeName" : "Default",
   "connectors" : [],

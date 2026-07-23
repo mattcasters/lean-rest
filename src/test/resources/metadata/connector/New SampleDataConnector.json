@@ -1,5 +1,4 @@
 {
-  "shared": false,
   "connector": {
     "SampleDataConnector": {
       "sourceConnectorName": "Sample Data",

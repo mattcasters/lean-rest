@@ -390,9 +390,9 @@ public class MetadataResource extends BaseResource {
   }
 
   /**
-   * List shared connector metadata with plugin type for the admin table (icons, tooltips).
+   * List connector metadata with plugin type for the admin table (icons, tooltips).
    *
-   * <p>Returns {@code [{ "name", "pluginId", "shared" }, ...]} sorted by name.
+   * <p>Returns {@code [{ "name", "pluginId" }, ...]} sorted by name.
    */
   @GET
   @Path("/connectors/summary/")
@@ -410,14 +410,10 @@ public class MetadataResource extends BaseResource {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("name", name);
         String pluginId = null;
-        boolean shared = false;
         try {
           LeanConnector connector = serializer.load(name);
-          if (connector != null) {
-            shared = connector.isShared();
-            if (connector.getConnector() != null) {
-              pluginId = connector.getConnector().getPluginId();
-            }
+          if (connector != null && connector.getConnector() != null) {
+            pluginId = connector.getConnector().getPluginId();
           }
         } catch (Exception loadEx) {
           leanRest
@@ -426,7 +422,6 @@ public class MetadataResource extends BaseResource {
                   "connectors/summary: could not load '" + name + "': " + loadEx.getMessage());
         }
         row.put("pluginId", pluginId);
-        row.put("shared", shared);
         rows.add(row);
       }
       rows.sort(

@@ -1,7 +1,6 @@
 {
   "themes": [
     {
-      "shared": false,
       "backgroundColor": {
         "b": 255,
         "r": 255,
@@ -150,14 +149,13 @@
               "alignment": "DEFAULT"
             }
           },
-          "shared": false,
           "component": {
             "LeanTableComponent": {
               "border": false,
               "columnSelection": [
                 {
                   "horizontalAlignment": "LEFT",
-                  "width": 0,
+                  "width": 450,
                   "headerValue": "Presentation name",
                   "verticalAlignment": "MIDDLE",
                   "columnName": "name"
@@ -173,14 +171,15 @@
               "sourceConnectorName": "presentation-list-sorted",
               "headerFont": {
                 "fontName": "Arial",
-                "fontSize": "12",
+                "fontSize": "24",
                 "bold": true,
                 "italic": false
               },
               "pluginId": "LeanTableComponent",
               "verticalMargin": 2,
               "themeName": "Default",
-              "headerOnEveryPage": false,
+              "gridLineWidth": "",
+              "headerOnEveryPage": true,
               "backGroundColor": {
                 "b": 255,
                 "r": 255,
@@ -191,8 +190,8 @@
               "header": true,
               "horizontalMargin": 2,
               "defaultFont": {
-                "fontName": "Arial",
-                "fontSize": "12",
+                "fontName": "Verdana",
+                "fontSize": "24",
                 "bold": false,
                 "italic": true
               },

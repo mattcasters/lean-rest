@@ -129,145 +129,38 @@
         {
           "layout": {
             "top": {
-              "offset": 79,
+              "offset": 53,
               "percentage": 0,
               "alignment": "TOP"
             },
             "left": {
-              "offset": 147,
+              "offset": 181,
               "percentage": 0,
               "alignment": "LEFT"
             },
             "bottom": {
-              "offset": 279,
+              "offset": 513,
               "percentage": 0,
               "alignment": "TOP"
             },
             "right": {
-              "offset": 467,
+              "offset": 840,
               "percentage": 0,
               "alignment": "LEFT"
             }
           },
           "component": {
-            "LeanGroupComponent": {
-              "border": false,
-              "columnSelection": [],
-              "distinctSelection": false,
-              "pluginId": "LeanGroupComponent",
-              "verticalMargin": 0,
-              "columnSorts": [],
-              "themeName": "Default",
-              "background": false,
-              "keyMappings": []
-            }
-          },
-          "name": "Group"
-        },
-        {
-          "layout": {
-            "top": {
-              "offset": 0,
-              "percentage": 0,
-              "alignment": "TOP"
-            },
-            "left": {
-              "offset": 0,
-              "percentage": 0,
-              "alignment": "LEFT"
-            }
-          },
-          "component": {
-            "LeanTableComponent": {
-              "border": false,
-              "columnSelection": [
-                {
-                  "horizontalAlignment": "LEFT",
-                  "width": 0,
-                  "headerValue": "",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "product_id"
-                },
-                {
-                  "horizontalAlignment": "LEFT",
-                  "width": 0,
-                  "headerValue": "",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "product_name"
-                },
-                {
-                  "horizontalAlignment": "LEFT",
-                  "width": 0,
-                  "headerValue": "",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "category"
-                },
-                {
-                  "horizontalAlignment": "LEFT",
-                  "width": 0,
-                  "headerValue": "",
-                  "verticalAlignment": "MIDDLE",
-                  "columnName": "unit_price"
-                }
-              ],
-              "sourceConnectorName": "test_source.product",
-              "headerFont": {
-                "fontName": "Arial",
-                "bold": true,
-                "italic": false
-              },
-              "pluginId": "LeanTableComponent",
-              "verticalMargin": 2,
-              "themeName": "Default",
-              "gridLineWidth": "",
-              "headerOnEveryPage": true,
-              "evenHeights": true,
-              "background": false,
-              "header": true,
-              "horizontalMargin": 4
-            }
-          },
-          "name": "ProductsTable"
-        },
-        {
-          "layout": {
-            "top": {
-              "offset": 25,
-              "percentage": 0,
-              "alignment": "TOP"
-            },
-            "left": {
-              "offset": 20,
-              "percentage": 0,
-              "componentName": "ProductsTable",
-              "alignment": "RIGHT"
-            },
-            "bottom": {
-              "offset": -25,
-              "percentage": 0,
-              "alignment": "BOTTOM"
-            },
-            "right": {
-              "offset": -25,
-              "percentage": 0,
-              "alignment": "RIGHT"
-            }
-          },
-          "component": {
-            "LeanBarChartComponent": {
+            "LeanPieChartComponent": {
               "showingVerticalTotals": false,
               "sourceConnectorName": "ProductCategoriesCount",
-              "showingAxisTicks": true,
-              "pluginId": "LeanBarChartComponent",
-              "dotSize": 6,
-              "showingLegend": false,
-              "showingFactValues": false,
-              "title": "Product categories",
+              "pluginId": "LeanPieChartComponent",
+              "showingLegend": true,
+              "showingFactValues": true,
+              "title": "Products per category",
               "facts": [
                 {
                   "headerHorizontalAlignment": "LEFT",
-                  "headerValue": "Count",
-                  "formatMask": "###,##0",
+                  "headerValue": "",
                   "verticalAggregation": true,
                   "horizontalAlignment": "LEFT",
                   "horizontalAggregation": true,
@@ -278,39 +171,42 @@
                   "columnName": "count"
                 }
               ],
-              "showingVerticalLabels": true,
               "titleColor": {
                 "b": 0,
-                "r": 0,
+                "r": 255,
                 "g": 0
               },
-              "horizontalMargin": 0,
+              "horizontalMargin": 10,
+              "innerRadiusPercent": "0",
               "border": false,
-              "showingHorizontalLabels": true,
               "showingHorizontalTotals": false,
-              "verticalMargin": 0,
-              "titleFont": {
+              "clockwise": true,
+              "startAngleDegrees": "-90",
+              "verticalMargin": 10,
+              "factsFont": {
                 "fontName": "Arial",
-                "bold": true,
+                "fontSize": "12",
+                "bold": false,
                 "italic": false
               },
-              "widthPercentage": "",
               "horizontalDimensions": [
                 {
                   "horizontalAlignment": "LEFT",
                   "width": 0,
-                  "headerValue": "Category",
+                  "headerValue": "",
                   "verticalAlignment": "MIDDLE",
                   "columnName": "category"
                 }
               ],
               "themeName": "Default",
-              "usingZeroBaseline": true,
+              "showingPercentages": true,
+              "showingSliceLabels": true,
               "verticalDimensions": [],
-              "background": false
+              "background": false,
+              "legendPosition": "RIGHT"
             }
           },
-          "name": "Bar Chart"
+          "name": "Pie Chart"
         }
       ],
       "leftMargin": 25,
@@ -325,7 +221,7 @@
   ],
   "parameterMappings": [],
   "defaultThemeName": "Default",
-  "name": "products",
+  "name": "pie-chart",
   "description": "",
   "interactions": []
 }

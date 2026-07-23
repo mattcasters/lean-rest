@@ -27,7 +27,6 @@
               "componentName": ""
             }
           },
-          "shared": false,
           "component": {
             "LeanTableComponent": {
               "border": false,

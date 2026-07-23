@@ -141,7 +141,7 @@ BASE=http://localhost:8080/lean/api
 
 # Sample Data — inline JSON (unsaved form state shape)
 curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"maxRows":5,"leanConnectorJson":"{\"name\":\"Sample Data\",\"shared\":false,\"connector\":{\"SampleDataConnector\":{\"pluginId\":\"SampleDataConnector\",\"rowCount\":10}}}"}' \
+  -d '{"maxRows":5,"leanConnectorJson":"{\"name\":\"Sample Data\",\"connector\":{\"SampleDataConnector\":{\"pluginId\":\"SampleDataConnector\",\"rowCount\":10}}}"}' \
   "$BASE/edit/connector/preview/" | head -c 800; echo
 
 # Expect: {"ok":true,"maxRows":5,"input":null,"output":{"rowMeta":[...],"rows":[...],"truncated":true,...},"error":null}

@@ -1,6 +1,5 @@
 {
   "name": "hop-execution-details",
-  "shared": false,
   "connector": {
     "LeanRestConnector": {
       "pluginId": "LeanRestConnector",

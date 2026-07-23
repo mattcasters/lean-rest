@@ -558,6 +558,202 @@ public class EditPresentationResource extends BaseResource {
   }
 
   /**
+   * Edge-resize end: move left/top/right/bottom layout edges by the given deltas (page pixels).
+   * Positive {@code dRight}/{@code dBottom} expand the box; positive {@code dLeft}/{@code dTop}
+   * move those edges toward higher coordinates (typically shrinking from that side).
+   *
+   * <p>Body example: {@code { "dLeft": 0, "dTop": 0, "dRight": 20, "dBottom": 10, "originX": 100,
+   * "originY": 50, "originWidth": 200, "originHeight": 80 }}. Origin geometry is used when size
+   * anchors (right/bottom) are missing so a natural-sized component (e.g. label) can gain an
+   * explicit box. Relative {@code componentName}/percentage/alignment are preserved.
+   */
+  @POST
+  @Path("/{name}/components/{componentName}/resize/")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response resizeComponent(
+      @PathParam("name") String name,
+      @PathParam("componentName") String componentName,
+      Map<String, Object> body) {
+    try {
+      int dLeft = toInt(body != null ? body.get("dLeft") : null, 0);
+      int dTop = toInt(body != null ? body.get("dTop") : null, 0);
+      int dRight = toInt(body != null ? body.get("dRight") : null, 0);
+      int dBottom = toInt(body != null ? body.get("dBottom") : null, 0);
+      int originX = toInt(body != null ? body.get("originX") : null, 0);
+      int originY = toInt(body != null ? body.get("originY") : null, 0);
+      int originWidth = toInt(body != null ? body.get("originWidth") : null, 0);
+      int originHeight = toInt(body != null ? body.get("originHeight") : null, 0);
+
+      if (dLeft == 0 && dTop == 0 && dRight == 0 && dBottom == 0) {
+        Map<String, Object> noop = new LinkedHashMap<>();
+        noop.put("name", componentName);
+        noop.put("changed", false);
+        return Response.ok(MAPPER.writeValueAsString(noop))
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .encoding("UTF-8")
+            .build();
+      }
+
+      IHopMetadataSerializer<LeanPresentation> serializer =
+          leanRest.getMetadataProvider().getSerializer(LeanPresentation.class);
+      LeanPresentation presentation = serializer.load(name);
+      if (presentation == null) {
+        return getServerError("Presentation not found: " + name, false);
+      }
+
+      ComponentLookup.Found found = ComponentLookup.find(presentation, null, componentName);
+      if (found == null) {
+        return getServerError(
+            "Component '" + componentName + "' not found in presentation '" + name + "'", false);
+      }
+
+      applyEdgeResize(
+          found.component, dLeft, dTop, dRight, dBottom, originX, originY, originWidth, originHeight);
+      serializer.save(presentation);
+
+      leanRest
+          .getLog()
+          .logBasic(
+              "resize: '"
+                  + found.component.getName()
+                  + "' in '"
+                  + name
+                  + "' edges (L,T,R,B)=("
+                  + dLeft
+                  + ","
+                  + dTop
+                  + ","
+                  + dRight
+                  + ","
+                  + dBottom
+                  + ")");
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("name", found.component.getName());
+      result.put("dLeft", dLeft);
+      result.put("dTop", dTop);
+      result.put("dRight", dRight);
+      result.put("dBottom", dBottom);
+      result.put("changed", true);
+      result.put("pageRole", found.pageRole);
+      result.put("logicalPageNumber", found.logicalPageNumber);
+      return Response.ok(MAPPER.writeValueAsString(result))
+          .type(MediaType.APPLICATION_JSON_TYPE)
+          .encoding("UTF-8")
+          .build();
+    } catch (Exception e) {
+      return getServerError(
+          "Error resizing component '" + componentName + "' in presentation '" + name + "'", e);
+    }
+  }
+
+  /**
+   * Adjust layout edges for a WYSIWYG resize. Unlike {@link #applyOffsetNudge}, left/top moves do
+   * <em>not</em> shift right/bottom absolute-size anchors (so width/height change). Missing
+   * right/bottom anchors are created from origin geometry when the corresponding edge is moved.
+   */
+  private static void applyEdgeResize(
+      LeanComponent component,
+      int dLeft,
+      int dTop,
+      int dRight,
+      int dBottom,
+      int originX,
+      int originY,
+      int originWidth,
+      int originHeight) {
+    if (component == null) {
+      return;
+    }
+    LeanLayout layout = component.getLayout();
+    if (layout == null) {
+      layout = new LeanLayout();
+      component.setLayout(layout);
+    }
+
+    // Clamp so the resulting box stays at least MIN_RESIZE_PX on each axis
+    final int minPx = 10;
+    int newW = Math.max(minPx, originWidth - dLeft + dRight);
+    int newH = Math.max(minPx, originHeight - dTop + dBottom);
+    // If clamping width, absorb into the edge that was moved
+    int adjDLeft = dLeft;
+    int adjDRight = dRight;
+    int adjDTop = dTop;
+    int adjDBottom = dBottom;
+    int intendedW = originWidth - dLeft + dRight;
+    int intendedH = originHeight - dTop + dBottom;
+    if (intendedW < minPx) {
+      int deficit = minPx - intendedW;
+      if (dRight != 0 && dLeft == 0) {
+        adjDRight += deficit;
+      } else if (dLeft != 0 && dRight == 0) {
+        adjDLeft -= deficit;
+      } else if (dLeft != 0) {
+        adjDLeft -= deficit;
+      } else {
+        adjDRight += deficit;
+      }
+    }
+    if (intendedH < minPx) {
+      int deficit = minPx - intendedH;
+      if (dBottom != 0 && dTop == 0) {
+        adjDBottom += deficit;
+      } else if (dTop != 0 && dBottom == 0) {
+        adjDTop -= deficit;
+      } else if (dTop != 0) {
+        adjDTop -= deficit;
+      } else {
+        adjDBottom += deficit;
+      }
+    }
+    newW = Math.max(minPx, originWidth - adjDLeft + adjDRight);
+    newH = Math.max(minPx, originHeight - adjDTop + adjDBottom);
+
+    // Left edge
+    if (adjDLeft != 0 || (layout.getLeft() == null && (adjDRight != 0 || originWidth > 0))) {
+      if (layout.getLeft() == null) {
+        layout.setLeft(
+            new LeanAttachment(null, 0, originX + adjDLeft, LeanAttachment.Alignment.LEFT));
+      } else if (adjDLeft != 0) {
+        layout.getLeft().setOffset(layout.getLeft().getOffset() + adjDLeft);
+      }
+    }
+
+    // Top edge
+    if (adjDTop != 0 || (layout.getTop() == null && (adjDBottom != 0 || originHeight > 0))) {
+      if (layout.getTop() == null) {
+        layout.setTop(new LeanAttachment(null, 0, originY + adjDTop, LeanAttachment.Alignment.TOP));
+      } else if (adjDTop != 0) {
+        layout.getTop().setOffset(layout.getTop().getOffset() + adjDTop);
+      }
+    }
+
+    // Right edge — create absolute size box when missing (width = right.offset - x for LEFT align)
+    if (adjDRight != 0 || adjDLeft != 0) {
+      if (layout.getRight() == null) {
+        layout.setRight(
+            new LeanAttachment(
+                null, 0, originX + adjDLeft + newW, LeanAttachment.Alignment.LEFT));
+      } else if (adjDRight != 0) {
+        // Page-space edge movement maps 1:1 onto offset for page anchors; relative
+        // componentName anchors still receive the offset nudge.
+        layout.getRight().setOffset(layout.getRight().getOffset() + adjDRight);
+      }
+    }
+
+    // Bottom edge
+    if (adjDBottom != 0 || adjDTop != 0) {
+      if (layout.getBottom() == null) {
+        layout.setBottom(
+            new LeanAttachment(null, 0, originY + adjDTop + newH, LeanAttachment.Alignment.TOP));
+      } else if (adjDBottom != 0) {
+        layout.getBottom().setOffset(layout.getBottom().getOffset() + adjDBottom);
+      }
+    }
+  }
+
+  /**
    * Components on a logical presentation page (name + plugin id/name) for the editor left list.
    *
    * @param name presentation metadata name
