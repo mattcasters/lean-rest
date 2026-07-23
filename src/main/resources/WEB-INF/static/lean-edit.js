@@ -268,6 +268,52 @@
 
     // ── Palette ──────────────────────────────────────────────────────────
 
+    /**
+     * URL for a component type icon from {@code @LeanComponentPlugin(image=...)} /
+     * {@code GET plugins/components/{id}/image}.
+     */
+    function componentPluginIconUrl(pluginId) {
+        if (!pluginId) {
+            return API_BASE + "plugins/components/default/image";
+        }
+        return API_BASE + "plugins/components/" + encodeURIComponent(pluginId) + "/image";
+    }
+
+    /** Tooltip: display name, plugin id, description (multi-line title). */
+    function componentPluginTooltip(p, extraLine) {
+        if (!p) {
+            return extraLine || "";
+        }
+        let name = p.name || p.id || "Component";
+        let id = p.id || "";
+        let desc = (p.description || "").trim();
+        let lines = [];
+        if (id && name !== id) {
+            lines.push(name + " (" + id + ")");
+        } else {
+            lines.push(name);
+        }
+        if (desc) {
+            lines.push(desc);
+        }
+        if (extraLine) {
+            lines.push(extraLine);
+        }
+        return lines.join("\n");
+    }
+
+    function findComponentPluginInCatalog(pluginId) {
+        if (!pluginId || !componentPluginCatalog) {
+            return null;
+        }
+        for (let i = 0; i < componentPluginCatalog.length; i++) {
+            if (componentPluginCatalog[i].id === pluginId) {
+                return componentPluginCatalog[i];
+            }
+        }
+        return null;
+    }
+
     function loadComponentPalette() {
         let root = document.getElementById("componentPalette");
         if (!root) {
@@ -292,8 +338,19 @@
                     btn.className = "palette-item";
                     btn.draggable = true;
                     btn.setAttribute("data-plugin-id", p.id);
-                    btn.title = (p.description || p.id) + " — drag onto the page";
-                    btn.textContent = p.name || p.id;
+                    btn.title = componentPluginTooltip(p, "— drag onto the page");
+                    let icon = document.createElement("img");
+                    icon.className = "palette-item-icon";
+                    icon.src = componentPluginIconUrl(p.id);
+                    icon.alt = "";
+                    icon.width = 20;
+                    icon.height = 20;
+                    icon.draggable = false;
+                    let label = document.createElement("span");
+                    label.className = "palette-item-label";
+                    label.textContent = p.name || p.id;
+                    btn.appendChild(icon);
+                    btn.appendChild(label);
                     btn.addEventListener("dragstart", function (e) {
                         // Custom type + text/plain (browsers often only expose plain in drop)
                         e.dataTransfer.setData("text/lean-component-plugin", p.id);
@@ -341,14 +398,29 @@
                     let item = pageComponents[i];
                     let name = item.name;
                     let typeLabel = item.pluginName || item.pluginId || "component";
+                    let pluginInfo = findComponentPluginInCatalog(item.pluginId);
                     let li = document.createElement("li");
                     li.className = "page-component-item";
                     if (name === selectedComponentName || name === pendingSelectName) {
                         li.classList.add("selected");
                     }
                     li.setAttribute("data-component-name", name);
-                    li.innerHTML = "<span class=\"comp-name\"></span>"
-                        + "<span class=\"comp-type\"></span>";
+                    li.title = componentPluginTooltip(
+                        pluginInfo || {
+                            id: item.pluginId,
+                            name: typeLabel,
+                            description: ""
+                        },
+                        "Component: " + name
+                    );
+                    li.innerHTML = "<img class=\"comp-type-icon\" width=\"18\" height=\"18\" alt=\"\">"
+                        + "<span class=\"comp-text\">"
+                        + "<span class=\"comp-name\"></span>"
+                        + "<span class=\"comp-type\"></span>"
+                        + "</span>";
+                    let iconEl = li.querySelector(".comp-type-icon");
+                    iconEl.src = componentPluginIconUrl(item.pluginId);
+                    iconEl.alt = typeLabel;
                     li.querySelector(".comp-name").textContent = name;
                     li.querySelector(".comp-type").textContent = typeLabel;
                     if (item.pageRole && item.pageRole !== "page") {
@@ -1067,8 +1139,23 @@
         reloadList: loadPageComponentList,
         reloadGeometries: loadComponentGeometries,
         refresh: refreshEditorState,
+        refreshHeaderFooter: loadHeaderFooterState,
         getSelectedName: function () {
             return selectedComponentName;
+        },
+        /** Component names on the current page (for interaction location pickers). */
+        getComponentNames: function () {
+            let names = [];
+            for (let i = 0; i < pageComponents.length; i++) {
+                if (pageComponents[i] && pageComponents[i].name) {
+                    names.push(pageComponents[i].name);
+                }
+            }
+            return names;
+        },
+        /** { name, pluginId } rows for the current page. */
+        getPageComponents: function () {
+            return pageComponents.slice();
         },
         selectComponent: selectComponent,
         clearSelection: clearSelection,

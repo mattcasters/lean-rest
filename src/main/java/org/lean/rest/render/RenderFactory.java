@@ -1,7 +1,6 @@
 package org.lean.rest.render;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -113,7 +112,8 @@ public class RenderFactory {
       String parametersJson = new ObjectMapper().writeValueAsString(rendering.getParameters());
       html = html.replace("%PARAMETER_VALUES%", "" + parametersJson);
 
-      return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
+      // charset on Content-Type (not Response.encoding, which is Content-Encoding)
+      return Response.ok().entity(html).type("text/html; charset=UTF-8").build();
     } catch (Exception e) {
       String errorMessage = "Error reading HTML template file " + templateFileName;
       LeanRest.getInstance().getLog().logError(errorMessage, e);
@@ -130,7 +130,7 @@ public class RenderFactory {
           throw new LeanException("Unable to find file " + filename);
         }
         String html = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-        return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
+        return Response.ok().entity(html).type("text/html; charset=UTF-8").build();
       }
     } catch (Exception e) {
       String errorMessage = "Error reading home page HTML file: " + filename;
@@ -147,7 +147,7 @@ public class RenderFactory {
     try {
       GuiFormSchema schema = new GuiFormSchemaBuilder().buildComponentSchema(componentId);
       String html = new GuiFormHtmlRenderer().render(schema);
-      return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
+      return Response.ok().entity(html).type("text/html; charset=UTF-8").build();
     } catch (Exception e) {
       String errorMessage = "Error building form for component plugin: " + componentId;
       LeanRest.getInstance().getLog().logError(errorMessage, e);
@@ -160,11 +160,7 @@ public class RenderFactory {
     try {
       GuiFormSchema schema = new GuiFormSchemaBuilder().buildComponentSchema(componentId);
       String json = new ObjectMapper().writeValueAsString(schema);
-      return Response.ok()
-          .entity(json)
-          .encoding("UTF-8")
-          .type(MediaType.APPLICATION_JSON)
-          .build();
+      return Response.ok().entity(json).type("application/json; charset=UTF-8").build();
     } catch (Exception e) {
       String errorMessage = "Error building form schema for component: " + componentId;
       LeanRest.getInstance().getLog().logError(errorMessage, e);
@@ -177,11 +173,7 @@ public class RenderFactory {
     try {
       GuiFormSchema schema = new GuiFormSchemaBuilder().buildConnectorSchema(connectorId);
       String json = new ObjectMapper().writeValueAsString(schema);
-      return Response.ok()
-          .entity(json)
-          .encoding("UTF-8")
-          .type(MediaType.APPLICATION_JSON)
-          .build();
+      return Response.ok().entity(json).type("application/json; charset=UTF-8").build();
     } catch (Exception e) {
       String errorMessage = "Error building form schema for connector: " + connectorId;
       LeanRest.getInstance().getLog().logError(errorMessage, e);
@@ -194,7 +186,7 @@ public class RenderFactory {
     try {
       GuiFormSchema schema = new GuiFormSchemaBuilder().buildConnectorSchema(connectorPluginId);
       String html = new GuiFormHtmlRenderer().renderConnector(schema);
-      return Response.ok().entity(html).encoding("UTF-8").type(MediaType.TEXT_HTML).build();
+      return Response.ok().entity(html).type("text/html; charset=UTF-8").build();
     } catch (Exception e) {
       String errorMessage =
           "Error building connector edit HTML for plugin: " + connectorPluginId;

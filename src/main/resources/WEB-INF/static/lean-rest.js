@@ -135,8 +135,9 @@ function setSidePanelOpen(open, options) {
             document.body.classList.add("property-panel-open");
             // Form (wide) + optional preview column on the far right
             let withPreview = options.withPreview === true;
-            let max = withPreview ? 1200 : 640;
-            let frac = withPreview ? 0.96 : 0.58;
+            let connectorStudio = options.connectorStudio === true;
+            let max = withPreview ? 1200 : (connectorStudio ? 1000 : 640);
+            let frac = withPreview ? 0.96 : (connectorStudio ? 0.75 : 0.58);
             let w = Math.min(max, Math.floor(window.innerWidth * frac));
             sidePanel.width(w);
             setPropertyPreviewVisible(!!options.withPreview && !!options.componentName);
@@ -201,7 +202,7 @@ function loadComponentPreview(componentName, geometry) {
     setPropertyPreviewVisible(true);
     if (empty) {
         empty.style.display = "";
-        empty.textContent = "Rendering preview…";
+        empty.textContent = "Rendering preview...";
     }
     img.classList.remove("is-visible");
 
@@ -240,7 +241,7 @@ function loadComponentPreview(componentName, geometry) {
             empty.style.display = "none";
         }
         if (meta) {
-            meta.textContent = componentName + " · " + w + "×" + h + " px (page size)";
+            meta.textContent = componentName + " | " + w + "x" + h + " px (page size)";
         }
     };
     img.onerror = function () {
@@ -382,6 +383,7 @@ function installHandlers() {
     loadIcons();
     checkPages();
     loadDrawSvgPage();
+    installPresentationTitleBar();
 
     // Track the mouse movements and clicks
     //
@@ -683,19 +685,18 @@ function indicateClickPossibility(event, result) {
     //
     drawSvg();
 
-    if (result["method"] != null
+    if (result
         && result["found"]
-        && result["drawnItem"] != null) {
+        && result["drawnItem"] != null
+        && result["drawnItem"]["geometry"] != null) {
 
         let geo = result["drawnItem"]["geometry"];
-        // console.log("gc? " + (gc != null) + " geo: (" + geo.x + "," + geo.y + "," + geo.width + "x" + geo.height + ")");
-
-        // Draw a blue rectangle over the item we can click on
-        //
-        setClickableRegion((geo.x - offset.x + 1) * scale,
-            (geo.y - offset.y + 1) * scale,
-            (geo.width - 2) * scale,
-            (geo.height - 2) * scale,
+        // Draw a blue outline + light fill over the interactive subject
+        // (component envelope, cell, series label, …)
+        setClickableRegion((geo.x - offset.x) * scale,
+            (geo.y - offset.y) * scale,
+            Math.max(2, geo.width * scale),
+            Math.max(2, geo.height * scale),
             ICON_SIZE);
         return true;
     }
@@ -707,11 +708,19 @@ function indicateClickPossibility(event, result) {
 }
 
 function setClickableRegion(x, y, width, height, yTranslation) {
-    gc.fillStyle = "rgba(0,0,120,0.2)";
     if (yTranslation > 0) {
         gc.translate(0, yTranslation);
     }
+    gc.save();
+    // Light fill so the region is obvious without hiding the chart
+    gc.fillStyle = "rgba(30, 90, 200, 0.18)";
+    gc.strokeStyle = "rgba(20, 70, 180, 0.95)";
+    gc.lineWidth = 2;
+    gc.setLineDash([6, 4]);
     gc.fillRect(x, y, width, height);
+    gc.strokeRect(x + 0.5, y + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
+    gc.setLineDash([]);
+    gc.restore();
     if (yTranslation > 0) {
         gc.translate(0, -yTranslation);
     }
@@ -805,36 +814,48 @@ function onLeftClick(requestData) {
         contentType: "application/json; charset=utf-8",
         dataType: "json",
         success: function (result) {
+            if (!result || !result.found) {
+                return;
+            }
             const method = result.method;
-            if (method != null && method.mouseClick) {
-                // reset the cursor to default
-                //
-                $("#svgPage").css("cursor", "default");
+            // Default to single-click if method is missing (older payloads)
+            const isClick = !method || method.mouseClick || (!method.mouseDoubleClick);
+            if (!isClick) {
+                return;
+            }
+            $("#svgCanvas").css("cursor", "default");
 
-                // Perform all the actions
-                //
-                const actions = result.actions;
-                for (let i = 0; i < actions.length; i++) {
-                    let action = actions[i];
-                    if (action.actionType === "OPEN_PRESENTATION") {
-                        let presentationName = action.objectName;
-                        let parameterName = action.valueParameter;
-                        let parameterValue = result.drawnItem.context.value;
-                        if (presentationName === null) {
-                            // Take the value of the string on which we clicked.
-                            presentationName = parameterValue;
-                        }
-                        if (presentationName !== null) {
-                            console.log("Open presentation: " + presentationName + ", with " + parameterName + "=" + parameterValue);
-
-                            openPresentation(presentationName, parameterName, parameterValue);
-                        }
+            const actions = result.actions || [];
+            for (let i = 0; i < actions.length; i++) {
+                let action = actions[i];
+                if (!action) {
+                    continue;
+                }
+                if (action.actionType === "OPEN_PRESENTATION") {
+                    let targetName = action.objectName;
+                    let parameterName = action.valueParameter || null;
+                    let parameterValue = null;
+                    if (result.drawnItem && result.drawnItem.context) {
+                        parameterValue = result.drawnItem.context.value;
                     }
+                    // Empty target => presentation name is the clicked cell value
+                    if (targetName === null || targetName === undefined || targetName === "") {
+                        targetName = parameterValue;
+                    }
+                    if (targetName) {
+                        console.log("Open presentation: " + targetName
+                            + (parameterName ? (", with " + parameterName + "=" + parameterValue) : ""));
+                        openPresentation(targetName, parameterName, parameterValue);
+                    }
+                } else if (action.actionType === "OPEN_LINK_SAME_TAB" && action.objectName) {
+                    window.open(action.objectName, "_self");
+                } else if (action.actionType === "OPEN_LINK_NEW_TAB" && action.objectName) {
+                    window.open(action.objectName, "_blank");
                 }
             }
         },
         error: function (request, status, error) {
-            alert(request.responseText);
+            console.warn("lookupActions failed:", request && request.responseText, status, error);
         }
     });
 }
@@ -1918,7 +1939,18 @@ function listFieldAdd(tableId) {
     } else if (kind === "sort") {
         createSortMethodRow(table, {"type": "NATIVE_VALUE", "ascending": true}, i);
     } else if (kind === "filter") {
-        createFilterValueRow(table, {"fieldName": "", "filterValue": ""}, i);
+        createFilterValueRow(table, {"fieldName": "", "filterValue": ""}, i, colNames);
+    } else if (kind === "groupKey") {
+        createGroupKeyMappingRow(table, {"groupColumn": "", "connectorColumn": ""}, i);
+    } else if (kind === "jsonField") {
+        createJsonFieldRow(table, {
+            "tag": "",
+            "name": "",
+            "type": "String",
+            "formatMask": "",
+            "length": "",
+            "precision": ""
+        }, i);
     } else if (kind === "connector" || kind === "bean") {
         createJsonObjectRow(table, {}, i);
     } else {
@@ -2179,45 +2211,196 @@ function openComponentPropertiesByName(componentName) {
 }
 
 /**
- * Open the side panel with a list of connector metadata elements.
+ * URL for a connector type icon declared on {@code @LeanConnectorPlugin(image=...)} in lean-engine
+ * (or another plugin JAR). Served by {@code GET plugins/connectors/{id}/image}.
+ */
+function connectorPluginIconUrl(pluginId) {
+    if (!pluginId) {
+        return API_BASE + "plugins/connectors/default/image";
+    }
+    return API_BASE + "plugins/connectors/" + encodeURIComponent(pluginId) + "/image";
+}
+
+/** @deprecated use connectorPluginIconUrl — kept for any leftover callers */
+function connectorPluginIconFile(pluginId) {
+    // No longer a filename under static/images; return full URL for convenience
+    return connectorPluginIconUrl(pluginId);
+}
+
+/**
+ * @returns {Object.<string, {id:string, name:string, description:string}>} by plugin id
+ */
+function getConnectorPluginInfoMap() {
+    let byId = {};
+    $.ajax({
+        url: API_BASE + "plugins/connectors",
+        type: "GET",
+        dataType: "json",
+        async: false,
+        success: function (list) {
+            if (!list) {
+                return;
+            }
+            for (let i = 0; i < list.length; i++) {
+                let p = list[i];
+                let id = p.id || p.pluginId;
+                if (!id) {
+                    continue;
+                }
+                byId[id] = {
+                    id: id,
+                    name: p.name || id,
+                    description: p.description || ""
+                };
+            }
+        },
+        error: function () {
+            // leave empty; tooltips fall back to plugin id
+        }
+    });
+    return byId;
+}
+
+/**
+ * @returns {Array.<{name:string, pluginId:string|null, shared:boolean}>}
+ */
+function getConnectorSummaries() {
+    let rows = [];
+    $.ajax({
+        url: API_BASE + "metadata/connectors/summary/",
+        type: "GET",
+        dataType: "json",
+        async: false,
+        success: function (list) {
+            rows = list || [];
+        },
+        error: function () {
+            // Fallback: names only (no icons/types)
+            let names = getConnectorNames();
+            for (let i = 0; i < names.length; i++) {
+                if (names[i]) {
+                    rows.push({name: names[i], pluginId: null, shared: false});
+                }
+            }
+        }
+    });
+    return rows;
+}
+
+/**
+ * Tooltip text: type name + description (plugin catalog).
+ */
+function connectorTypeTooltip(pluginId, pluginInfoMap) {
+    let info = (pluginId && pluginInfoMap) ? pluginInfoMap[pluginId] : null;
+    let typeLabel = info ? info.name : (pluginId || "Unknown type");
+    let desc = info && info.description ? String(info.description).trim() : "";
+    if (pluginId && typeLabel !== pluginId) {
+        typeLabel = typeLabel + " (" + pluginId + ")";
+    }
+    // Use newline for multi-line native tooltips where supported
+    if (desc) {
+        return typeLabel + "\n" + desc;
+    }
+    return typeLabel;
+}
+
+/**
+ * Open the side panel with a table of connector metadata elements.
+ * Create controls at the top; each row has type icon, edit button, and delete icon.
  */
 function editConnectorsList() {
-    connectorNames = getConnectorNames();
+    abortConnectorStudioRequests();
+    let summaries = getConnectorSummaries();
+    let pluginInfoMap = getConnectorPluginInfoMap();
+    // Keep name cache warm for forms
+    connectorNames = [""];
+    for (let s = 0; s < summaries.length; s++) {
+        if (summaries[s] && summaries[s].name) {
+            connectorNames.push(summaries[s].name);
+        }
+    }
+
     let html = "<h3>Connectors</h3>";
-    html += "<p>Select a connector to edit, or create a new one.</p>";
-    html += "<ul id=\"connectorList\">";
-    for (let i = 0; i < connectorNames.length; i++) {
-        let name = connectorNames[i];
-        if (name === null || name === "") {
+    html += "<p class=\"editor-hint\">Select a connector to edit, or create a new one.</p>";
+
+    // New connector controls at the top
+    html += "<div class=\"connector-list-create\" id=\"connectorListCreate\">";
+    html += "<label for=\"newConnectorPluginId\">New connector type</label> ";
+    html += "<select id=\"newConnectorPluginId\" class=\"connector-list-type-select\"></select> ";
+    html += "<button type=\"button\" class=\"connector-list-action-btn\" id=\"createConnectorBtn\">Create</button>";
+    html += "</div>";
+
+    html += "<div class=\"connector-list-table-wrap\">";
+    html += "<table class=\"connector-list-table\" id=\"connectorListTable\">";
+    html += "<thead><tr>"
+        + "<th class=\"connector-list-col-icon\"></th>"
+        + "<th>Name</th>"
+        + "<th class=\"connector-list-col-actions\"></th>"
+        + "</tr></thead>";
+    html += "<tbody id=\"connectorListBody\">";
+    let rowCount = 0;
+    for (let i = 0; i < summaries.length; i++) {
+        let row = summaries[i];
+        let name = row && row.name;
+        if (name === null || name === undefined || name === "") {
             continue;
         }
-        // Use buttons + data-name (not href="#"/inline onclick with JSON.stringify).
-        // Double-quoted onclick + JSON.stringify(name) breaks the attribute:
-        //   onclick="editConnectorByName("Sample Data")"  → only runs editConnectorByName(
-        html += "<li><button type=\"button\" class=\"connector-list-btn\" data-connector-name=\""
-            + escapeHtmlAttribute(name) + "\">" + escapeHtmlText(name) + "</button></li>";
+        rowCount++;
+        let pluginId = row.pluginId || "";
+        let iconUrl = connectorPluginIconUrl(pluginId);
+        let tip = connectorTypeTooltip(pluginId, pluginInfoMap);
+        // data-connector-name avoids broken onclick for names with spaces/quotes
+        html += "<tr>";
+        html += "<td class=\"connector-list-col-icon\">"
+            + "<img class=\"connector-list-type-icon\" "
+            + "src=\"" + escapeHtmlAttribute(iconUrl) + "\" "
+            + "width=\"20\" height=\"20\" "
+            + "alt=\"" + escapeHtmlAttribute(pluginId || "connector") + "\" "
+            + "title=\"" + escapeHtmlAttribute(tip).replace(/\n/g, "&#10;") + "\">"
+            + "</td>";
+        html += "<td><button type=\"button\" class=\"connector-list-btn\" data-connector-name=\""
+            + escapeHtmlAttribute(name) + "\" title=\"Edit connector\">"
+            + escapeHtmlText(name) + "</button></td>";
+        html += "<td class=\"connector-list-col-actions\">"
+            + "<button type=\"button\" class=\"list-row-btn connector-list-delete-btn\" "
+            + "data-connector-name=\"" + escapeHtmlAttribute(name) + "\" "
+            + "title=\"Delete connector\">"
+            + "<img src=\"" + API_BASE + "static/images/delete.svg\" alt=\"Delete\" "
+            + "width=\"16\" height=\"16\"></button></td>";
+        html += "</tr>";
     }
-    html += "</ul>";
-    html += "<br><label for=\"newConnectorPluginId\">New connector type: </label>";
-    html += "<select id=\"newConnectorPluginId\" style=\"width: 60%\"></select> ";
-    html += "<button type=\"button\" id=\"createConnectorBtn\">Create</button>";
-    html += "<br><br><button type=\"button\" id=\"closeConnectorListBtn\">Close</button>";
+    if (rowCount === 0) {
+        html += "<tr><td colspan=\"3\" class=\"connector-list-empty\">No connectors yet</td></tr>";
+    }
+    html += "</tbody></table></div>";
+
+    html += "<div class=\"admin-list-actions\">";
+    html += "<button type=\"button\" class=\"connector-list-action-btn\" id=\"closeConnectorListBtn\">Close</button>";
+    html += "</div>";
 
     setSidePanelOpen(true, {withPreview: false});
     document.getElementById("editArea").innerHTML = html;
 
-    // Wire list item clicks via data attributes (safe for spaces/special chars)
-    let list = document.getElementById("connectorList");
-    if (list) {
-        list.addEventListener("click", function (e) {
-            let btn = e.target.closest("button.connector-list-btn");
-            if (!btn) {
+    let table = document.getElementById("connectorListTable");
+    if (table) {
+        table.addEventListener("click", function (e) {
+            let delBtn = e.target.closest("button.connector-list-delete-btn");
+            if (delBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                let delName = delBtn.getAttribute("data-connector-name");
+                if (delName) {
+                    deleteConnectorByName(delName);
+                }
                 return;
             }
-            e.preventDefault();
-            let name = btn.getAttribute("data-connector-name");
-            if (name) {
-                editConnectorByName(name);
+            let editBtn = e.target.closest("button.connector-list-btn");
+            if (editBtn) {
+                e.preventDefault();
+                let editName = editBtn.getAttribute("data-connector-name");
+                if (editName) {
+                    editConnectorByName(editName);
+                }
             }
         });
     }
@@ -2234,8 +2417,51 @@ function editConnectorsList() {
         };
     }
 
-    // Populate plugin type dropdown from plugins/components API
+    // Populate plugin type dropdown from plugins/connectors API
     loadConnectorPluginTypes("#newConnectorPluginId");
+}
+
+/**
+ * Delete a shared connector after confirmation, then refresh the list.
+ */
+function deleteConnectorByName(name) {
+    if (!name) {
+        return;
+    }
+    let ok = window.confirm(
+        "Delete connector \"" + name + "\"?\n\n"
+        + "This cannot be undone. Presentations that use this connector may fail until reconfigured."
+    );
+    if (!ok) {
+        return;
+    }
+    $.ajax({
+        url: API_BASE + "metadata/connector/" + encodeURIComponent(name),
+        type: "DELETE",
+        dataType: "text",
+        success: function () {
+            connectorNames = null;
+            // If we were editing this connector, clear form state
+            if (oldConnectorName === name || (connectorJson && connectorJson.name === name)) {
+                connectorJson = null;
+                connectorPluginId = null;
+                oldConnectorName = null;
+            }
+            editConnectorsList();
+            if (typeof presentationName !== "undefined" && presentationName
+                && typeof reloadPresentation === "function") {
+                try {
+                    reloadPresentation();
+                } catch (e) {
+                    console.warn("reloadPresentation after connector delete failed:", e);
+                }
+            }
+        },
+        error: function (xhr) {
+            alert("Failed to delete connector '" + name + "': "
+                + ((xhr && xhr.responseText) ? xhr.responseText : xhr.status));
+        }
+    });
 }
 
 /** Escape text for use inside an HTML attribute delimited by double quotes. */
@@ -2265,7 +2491,7 @@ function loadConnectorPluginTypes(selectSelector) {
             let sel = $(selectSelector);
             sel.empty();
             if (!list || list.length === 0) {
-                // Fallback known types
+                // Fallback known types (keep in sync with lean-engine LeanConnectorPlugin ids)
                 list = [
                     {"id": "SqlConnector", "name": "SQL"},
                     {"id": "SampleDataConnector", "name": "Sample data"},
@@ -2273,7 +2499,10 @@ function loadConnectorPluginTypes(selectSelector) {
                     {"id": "SelectionConnector", "name": "Select fields"},
                     {"id": "SimpleFilterConnector", "name": "Simple filter"},
                     {"id": "LeanRestConnector", "name": "REST"},
-                    {"id": "LeanListConnector", "name": "List"}
+                    {"id": "LeanListConnector", "name": "List"},
+                    {"id": "DistinctConnector", "name": "Select distinct rows"},
+                    {"id": "PassthroughConnector", "name": "Passthrough"},
+                    {"id": "ChainConnector", "name": "Chain connectors"}
                 ];
             }
             for (let i = 0; i < list.length; i++) {
@@ -2288,7 +2517,7 @@ function loadConnectorPluginTypes(selectSelector) {
             sel.empty();
             ["SqlConnector", "SampleDataConnector", "SortConnector", "SelectionConnector",
                 "SimpleFilterConnector", "LeanRestConnector", "LeanListConnector",
-                "DistinctConnector", "PassthroughConnector"].forEach(function (id) {
+                "DistinctConnector", "PassthroughConnector", "ChainConnector"].forEach(function (id) {
                 sel.append($("<option></option>").attr("value", id).text(id));
             });
         }
@@ -2340,10 +2569,21 @@ function editConnectorByName(name) {
     });
 }
 
+/** Default sample size for connector studio Apply preview. */
+const CONNECTOR_STUDIO_MAX_ROWS = 20;
+/** Debounce delay (ms) for auto full preview after source changes. */
+const CONNECTOR_STUDIO_PREVIEW_DEBOUNCE_MS = 200;
+
+let connectorStudioPreviewXhr = null;
+let connectorStudioInputXhr = null;
+let connectorStudioPreviewTimer = null;
+let connectorStudioPreviewSeq = 0;
+
 function openConnectorEditForm(pluginId) {
-    setSidePanelOpen(true, {withPreview: false});
+    setSidePanelOpen(true, {withPreview: false, connectorStudio: true});
     connectorColumnListTables = [];
     connectorColumnSelects = [];
+    abortConnectorStudioRequests();
     // Keep presentation connector/theme caches warm when possible; only clear if missing
     // so ensureFormMetadataCaches does less work under nested sync XHR.
     if (typeof ensureFormMetadataCaches === "function") {
@@ -2359,11 +2599,24 @@ function openConnectorEditForm(pluginId) {
         dataType: "html",
         success: function (snippet) {
             let editArea = document.getElementById("editArea");
-            editArea.innerHTML = snippet;
+            editArea.innerHTML = buildConnectorStudioShell(snippet);
             // Defer so sync XHR in init/load (describe columns, metadata lists) is not nested
             // inside this async AJAX success callback.
             setTimeout(function () {
                 runFormScripts(pluginId || "connector");
+                wireConnectorStudioListeners();
+                // Immediate input sample if a source is already selected
+                let sourceEl = document.getElementById("sourceConnectorName");
+                let sourceName = sourceEl ? (sourceEl.value || "").trim() : "";
+                if (sourceName) {
+                    let inputPane = document.getElementById("connectorInputPane");
+                    if (inputPane) {
+                        inputPane.removeAttribute("hidden");
+                    }
+                    previewConnectorStudioInputSource(sourceName);
+                }
+                // Full input+output preview from form state
+                applyConnectorPreview();
             }, 0);
         },
         error: function (request) {
@@ -2372,11 +2625,342 @@ function openConnectorEditForm(pluginId) {
     });
 }
 
-function saveConnector() {
+/**
+ * Wrap generated connector form HTML in the studio shell:
+ * input samples (top) → settings (middle) → output samples + errors (bottom).
+ */
+function buildConnectorStudioShell(settingsHtml) {
+    return ""
+        + '<div class="connector-studio" id="connectorStudio">'
+        + '  <div class="connector-studio-toolbar">'
+        + '    <label for="connectorStudioMaxRows">Sample rows </label>'
+        + '    <select id="connectorStudioMaxRows" class="connector-studio-max-rows" title="Rows to fetch on Apply">'
+        + '      <option value="10">10</option>'
+        + '      <option value="20" selected>20</option>'
+        + '      <option value="50">50</option>'
+        + '      <option value="100">100</option>'
+        + "    </select>"
+        + '    <span class="connector-studio-status" id="connectorStudioStatus" aria-live="polite"></span>'
+        + "  </div>"
+        + '  <div class="connector-studio-pane connector-studio-input" id="connectorInputPane" hidden>'
+        + '    <div class="connector-studio-pane-header">'
+        + '      <span class="connector-studio-pane-title">Input</span>'
+        + '      <span class="connector-studio-pane-meta" id="connectorInputMeta"></span>'
+        + "    </div>"
+        + '    <div class="connector-studio-sample" id="connectorInputSample">'
+        + '      <p class="connector-studio-placeholder">Select a source connector to preview input rows</p>'
+        + "    </div>"
+        + '    <button type="button" class="connector-studio-layout-btn" id="connectorInputLayoutBtn"'
+        + '            onclick="toggleConnectorLayoutDetails(\'input\')">Show layout details</button>'
+        + '    <div class="connector-studio-layout" id="connectorInputLayout" hidden></div>'
+        + "  </div>"
+        + '  <div class="connector-studio-settings" id="connectorSettings">'
+        + settingsHtml
+        + "  </div>"
+        + '  <div class="connector-studio-pane connector-studio-output" id="connectorOutputPane">'
+        + '    <div class="connector-studio-pane-header">'
+        + '      <span class="connector-studio-pane-title">Output</span>'
+        + '      <span class="connector-studio-pane-meta" id="connectorOutputMeta"></span>'
+        + "    </div>"
+        + '    <div class="connector-studio-sample" id="connectorOutputSample">'
+        + '      <p class="connector-studio-placeholder">Apply to load output sample rows</p>'
+        + "    </div>"
+        + '    <button type="button" class="connector-studio-layout-btn" id="connectorOutputLayoutBtn"'
+        + '            onclick="toggleConnectorLayoutDetails(\'output\')">Show layout details</button>'
+        + '    <div class="connector-studio-layout" id="connectorOutputLayout" hidden></div>'
+        + "  </div>"
+        + '  <div class="connector-studio-error" id="connectorStudioError" hidden>'
+        + '    <div class="connector-studio-error-header">'
+        + '      <strong>Error</strong>'
+        + '      <button type="button" class="connector-studio-error-toggle" id="connectorStudioErrorToggle"'
+        + '              onclick="toggleConnectorStudioErrorDetail()">Details</button>'
+        + "    </div>"
+        + '    <div class="connector-studio-error-summary" id="connectorStudioErrorSummary"></div>'
+        + '    <pre class="connector-studio-error-detail" id="connectorStudioErrorDetail" hidden></pre>'
+        + "  </div>"
+        + "</div>";
+}
+
+/**
+ * Wire studio behaviour after the generated form scripts run.
+ * Source connector changes immediately show the input pane + sample.
+ */
+function wireConnectorStudioListeners() {
+    let sourceEl = document.getElementById("sourceConnectorName");
+    if (sourceEl && !sourceEl._leanStudioWired) {
+        sourceEl._leanStudioWired = true;
+        sourceEl.addEventListener("change", function () {
+            onConnectorStudioSourceChanged();
+        });
+    }
+    let maxEl = document.getElementById("connectorStudioMaxRows");
+    if (maxEl && !maxEl._leanStudioWired) {
+        maxEl._leanStudioWired = true;
+        maxEl.addEventListener("change", function () {
+            scheduleConnectorPreview(CONNECTOR_STUDIO_PREVIEW_DEBOUNCE_MS);
+        });
+    }
+}
+
+/**
+ * User picked/cleared Source connector: show/hide input pane and load input samples now;
+ * also schedule a full Apply so output stays consistent.
+ */
+function onConnectorStudioSourceChanged() {
+    let sourceEl = document.getElementById("sourceConnectorName");
+    let sourceName = sourceEl ? (sourceEl.value || "").trim() : "";
+    let inputPane = document.getElementById("connectorInputPane");
+
+    if (!sourceName) {
+        if (inputPane) {
+            inputPane.setAttribute("hidden", "hidden");
+        }
+        clearConnectorStudioSide("input");
+        abortConnectorStudioInputRequest();
+        // Still refresh output (source may no longer apply)
+        scheduleConnectorPreview(CONNECTOR_STUDIO_PREVIEW_DEBOUNCE_MS);
+        return;
+    }
+
+    if (inputPane) {
+        inputPane.removeAttribute("hidden");
+    }
+    // Immediate input sample from the selected source (does not wait for full transform)
+    previewConnectorStudioInputSource(sourceName);
+    // Debounced full preview updates output (and reconciles input from the same request)
+    scheduleConnectorPreview(CONNECTOR_STUDIO_PREVIEW_DEBOUNCE_MS);
+}
+
+function getConnectorStudioMaxRows() {
+    let el = document.getElementById("connectorStudioMaxRows");
+    if (el && el.value) {
+        let n = parseInt(el.value, 10);
+        if (!isNaN(n) && n > 0) {
+            return Math.min(100, n);
+        }
+    }
+    return CONNECTOR_STUDIO_MAX_ROWS;
+}
+
+function setConnectorStudioStatus(text) {
+    let el = document.getElementById("connectorStudioStatus");
+    if (el) {
+        el.textContent = text || "";
+    }
+}
+
+function abortConnectorStudioInputRequest() {
+    if (connectorStudioInputXhr && connectorStudioInputXhr.readyState !== 4) {
+        try {
+            connectorStudioInputXhr.abort();
+        } catch (e) { /* ignore */ }
+    }
+    connectorStudioInputXhr = null;
+}
+
+function abortConnectorStudioPreviewRequest() {
+    if (connectorStudioPreviewXhr && connectorStudioPreviewXhr.readyState !== 4) {
+        try {
+            connectorStudioPreviewXhr.abort();
+        } catch (e) { /* ignore */ }
+    }
+    connectorStudioPreviewXhr = null;
+}
+
+function abortConnectorStudioRequests() {
+    if (connectorStudioPreviewTimer) {
+        clearTimeout(connectorStudioPreviewTimer);
+        connectorStudioPreviewTimer = null;
+    }
+    abortConnectorStudioInputRequest();
+    abortConnectorStudioPreviewRequest();
+    setConnectorStudioBusy(false);
+    setConnectorStudioStatus("");
+}
+
+/**
+ * Load sample rows for a named source connector into the INPUT pane only.
+ */
+function previewConnectorStudioInputSource(sourceName) {
+    if (!sourceName) {
+        return;
+    }
+    abortConnectorStudioInputRequest();
+    setConnectorStudioMeta("input", sourceName + " | loading...");
+    let sampleEl = document.getElementById("connectorInputSample");
+    if (sampleEl) {
+        sampleEl.innerHTML = '<p class="connector-studio-placeholder">Loading input sample...</p>';
+    }
+
+    let seq = ++connectorStudioPreviewSeq;
+    connectorStudioInputXhr = $.ajax({
+        url: API_BASE + "metadata/connector-json/" + encodeURIComponent(sourceName),
+        type: "GET",
+        dataType: "json",
+        success: function (data) {
+            if (!data) {
+                return;
+            }
+            let body = {
+                leanConnectorJson: JSON.stringify(data),
+                maxRows: getConnectorStudioMaxRows()
+            };
+            if (typeof renderId !== "undefined" && renderId) {
+                body.renderId = renderId;
+            }
+            connectorStudioInputXhr = $.ajax({
+                url: API_BASE + "edit/connector/preview/",
+                type: "POST",
+                data: JSON.stringify(body),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (result) {
+                    // Ignore stale responses if a newer preview finished
+                    if (seq < connectorStudioPreviewSeq - 1) {
+                        return;
+                    }
+                    let inputPane = document.getElementById("connectorInputPane");
+                    if (inputPane) {
+                        inputPane.removeAttribute("hidden");
+                    }
+                    if (result && result.output) {
+                        // Source connector's output is this transform's input
+                        let side = result.output;
+                        side.connectorName = sourceName;
+                        renderConnectorStudioSide("input", side);
+                    } else if (result && result.error) {
+                        renderConnectorStudioSide("input", {
+                            connectorName: sourceName,
+                            rowMeta: [],
+                            rows: [],
+                            errorSummary: result.error.summary || "Could not sample source",
+                            errorDetail: result.error.detail
+                        });
+                    }
+                },
+                error: function (xhr, status) {
+                    if (status === "abort") {
+                        return;
+                    }
+                    setConnectorStudioMeta("input", sourceName);
+                    if (sampleEl) {
+                        sampleEl.innerHTML = '<p class="connector-studio-placeholder connector-studio-side-error">'
+                            + "Failed to load input sample</p>";
+                    }
+                }
+            });
+        },
+        error: function (xhr, status) {
+            if (status === "abort") {
+                return;
+            }
+            setConnectorStudioMeta("input", sourceName);
+            if (sampleEl) {
+                sampleEl.innerHTML = '<p class="connector-studio-placeholder connector-studio-side-error">'
+                    + "Could not load source connector '" + escapeHtmlText(sourceName) + "'</p>";
+            }
+        }
+    });
+}
+
+/**
+ * Pull form values into {@code connectorJson} via the generated save script (does not persist).
+ * @returns {boolean} true if sync succeeded
+ */
+function syncConnectorJsonFromForm() {
     try {
         let saveScript = document.getElementById("connectorSaveScript");
         if (saveScript) {
             eval(saveScript.innerHTML);
+        }
+        return true;
+    } catch (e) {
+        showConnectorStudioError("Could not read form values", String(e));
+        return false;
+    }
+}
+
+/**
+ * Schedule a full input+output preview after {@code delayMs} (cancels previous timer).
+ */
+function scheduleConnectorPreview(delayMs) {
+    if (connectorStudioPreviewTimer) {
+        clearTimeout(connectorStudioPreviewTimer);
+    }
+    connectorStudioPreviewTimer = setTimeout(function () {
+        connectorStudioPreviewTimer = null;
+        applyConnectorPreview();
+    }, typeof delayMs === "number" ? delayMs : CONNECTOR_STUDIO_PREVIEW_DEBOUNCE_MS);
+}
+
+/**
+ * Apply: refresh input/output sample tables from current form state (no metadata write).
+ */
+function applyConnectorPreview() {
+    if (!syncConnectorJsonFromForm()) {
+        return;
+    }
+    if (!connectorJson) {
+        showConnectorStudioError("No connector data to preview", "connectorJson is not set");
+        return;
+    }
+    abortConnectorStudioPreviewRequest();
+    setConnectorStudioBusy(true);
+    setConnectorStudioStatus("Previewing...");
+    clearConnectorStudioError();
+
+    let body = {
+        leanConnectorJson: JSON.stringify(connectorJson),
+        maxRows: getConnectorStudioMaxRows()
+    };
+    if (typeof renderId !== "undefined" && renderId) {
+        body.renderId = renderId;
+    }
+
+    let seq = ++connectorStudioPreviewSeq;
+    connectorStudioPreviewXhr = $.ajax({
+        url: API_BASE + "edit/connector/preview/",
+        type: "POST",
+        data: JSON.stringify(body),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: function (result) {
+            if (seq !== connectorStudioPreviewSeq) {
+                return; // superseded
+            }
+            setConnectorStudioBusy(false);
+            setConnectorStudioStatus("Updated");
+            renderConnectorStudioPreview(result);
+            // Clear status after a moment
+            setTimeout(function () {
+                if (seq === connectorStudioPreviewSeq) {
+                    setConnectorStudioStatus("");
+                }
+            }, 1500);
+        },
+        error: function (xhr, status) {
+            if (status === "abort") {
+                return;
+            }
+            if (seq !== connectorStudioPreviewSeq) {
+                return;
+            }
+            setConnectorStudioBusy(false);
+            setConnectorStudioStatus("");
+            let msg = (xhr && xhr.responseText) ? xhr.responseText : "Preview request failed";
+            showConnectorStudioError("Preview request failed", msg);
+            clearConnectorStudioSide("output");
+        }
+    });
+}
+
+/**
+ * Save: persist connector metadata (and soft-reload presentation when in the editor).
+ */
+function saveConnector() {
+    try {
+        if (!syncConnectorJsonFromForm()) {
+            return;
         }
         let request = {
             "oldConnectorName": oldConnectorName,
@@ -2392,7 +2976,7 @@ function saveConnector() {
             success: function (savedName) {
                 oldConnectorName = savedName;
                 connectorNames = null; // refresh cache
-                // Match Apply button title: save and reload presentation so changes apply
+                // Soft-reload presentation so components pick up connector changes
                 if (typeof presentationName !== "undefined" && presentationName
                     && typeof reloadPresentation === "function") {
                     try {
@@ -2414,10 +2998,305 @@ function saveConnector() {
 }
 
 function closeConnector() {
+    abortConnectorStudioRequests();
     connectorJson = null;
     connectorPluginId = null;
     oldConnectorName = null;
     setSidePanelOpen(false);
+}
+
+// ---------------------------------------------------------------------------
+// Connector studio: sample tables, layout details, errors
+// ---------------------------------------------------------------------------
+
+function setConnectorStudioBusy(busy) {
+    let studio = document.getElementById("connectorStudio");
+    if (!studio) {
+        return;
+    }
+    // Soft busy: dim sample panes only so settings stay editable while preview runs
+    let samples = studio.querySelectorAll(".connector-studio-sample");
+    for (let i = 0; i < samples.length; i++) {
+        if (busy) {
+            samples[i].classList.add("is-busy");
+        } else {
+            samples[i].classList.remove("is-busy");
+        }
+    }
+    if (busy) {
+        studio.classList.add("is-previewing");
+    } else {
+        studio.classList.remove("is-previewing");
+    }
+}
+
+function renderConnectorStudioPreview(result) {
+    if (!result) {
+        showConnectorStudioError("Empty preview response", "");
+        return;
+    }
+
+    // Input pane: show only when we have input data or an input-related failure with source
+    let hasInput = result.input
+        && (result.input.rowMeta || (result.input.rows && result.input.rows.length)
+            || result.input.errorSummary);
+    // Also show input pane if form has a source connector selected (even before first successful sample)
+    let sourceEl = document.getElementById("sourceConnectorName");
+    let sourceName = sourceEl ? (sourceEl.value || "").trim() : "";
+    let showInput = hasInput || !!sourceName;
+
+    let inputPane = document.getElementById("connectorInputPane");
+    if (inputPane) {
+        if (showInput) {
+            inputPane.removeAttribute("hidden");
+            if (result.input) {
+                renderConnectorStudioSide("input", result.input);
+            } else {
+                clearConnectorStudioSide("input");
+                setConnectorStudioMeta("input", sourceName ? ("source: " + sourceName) : "");
+            }
+        } else {
+            inputPane.setAttribute("hidden", "hidden");
+            clearConnectorStudioSide("input");
+        }
+    }
+
+    if (result.output) {
+        renderConnectorStudioSide("output", result.output);
+    } else {
+        clearConnectorStudioSide("output");
+    }
+
+    if (result.ok === false && result.error) {
+        showConnectorStudioError(
+            result.error.summary || "Preview failed",
+            result.error.detail || result.error.summary || ""
+        );
+    } else {
+        clearConnectorStudioError();
+    }
+}
+
+function renderConnectorStudioSide(which, side) {
+    let sampleEl = document.getElementById(
+        which === "input" ? "connectorInputSample" : "connectorOutputSample");
+    let layoutEl = document.getElementById(
+        which === "input" ? "connectorInputLayout" : "connectorOutputLayout");
+    if (!sampleEl) {
+        return;
+    }
+
+    let rowMeta = side.rowMeta || [];
+    let rows = side.rows || [];
+    let metaParts = [];
+    if (side.connectorName) {
+        metaParts.push(side.connectorName);
+    }
+    if (typeof side.rowCountReturned === "number") {
+        metaParts.push(side.rowCountReturned + " row(s)");
+    }
+    if (side.truncated) {
+        metaParts.push("truncated");
+    }
+    setConnectorStudioMeta(which, metaParts.join(" | "));
+
+    if (side.errorSummary && (!rows || !rows.length)) {
+        sampleEl.innerHTML = '<p class="connector-studio-placeholder connector-studio-side-error">'
+            + escapeHtmlText(side.errorSummary) + "</p>";
+    } else if (!rows || !rows.length) {
+        if (rowMeta && rowMeta.length) {
+            sampleEl.innerHTML = '<p class="connector-studio-placeholder">No sample rows '
+                + "(layout available via Show layout details)</p>";
+        } else {
+            sampleEl.innerHTML = '<p class="connector-studio-placeholder">No sample rows</p>';
+        }
+    } else {
+        sampleEl.innerHTML = buildConnectorSampleTableHtml(rowMeta, rows);
+    }
+
+    if (layoutEl) {
+        // Preserve expand/collapse state across Apply refreshes
+        let wasOpen = !layoutEl.hasAttribute("hidden");
+        layoutEl.innerHTML = buildConnectorLayoutTableHtml(rowMeta);
+        let btn = document.getElementById(
+            which === "input" ? "connectorInputLayoutBtn" : "connectorOutputLayoutBtn");
+        if (wasOpen) {
+            layoutEl.removeAttribute("hidden");
+            if (btn) {
+                btn.textContent = "Hide layout details";
+            }
+        } else {
+            layoutEl.setAttribute("hidden", "hidden");
+            if (btn) {
+                btn.textContent = "Show layout details";
+            }
+        }
+    }
+}
+
+function setConnectorStudioMeta(which, text) {
+    let el = document.getElementById(
+        which === "input" ? "connectorInputMeta" : "connectorOutputMeta");
+    if (el) {
+        el.textContent = text || "";
+    }
+}
+
+function clearConnectorStudioSide(which) {
+    let sampleEl = document.getElementById(
+        which === "input" ? "connectorInputSample" : "connectorOutputSample");
+    let layoutEl = document.getElementById(
+        which === "input" ? "connectorInputLayout" : "connectorOutputLayout");
+    if (sampleEl) {
+        sampleEl.innerHTML = '<p class="connector-studio-placeholder">-</p>';
+    }
+    if (layoutEl) {
+        layoutEl.innerHTML = "";
+        layoutEl.setAttribute("hidden", "hidden");
+    }
+    let btn = document.getElementById(
+        which === "input" ? "connectorInputLayoutBtn" : "connectorOutputLayoutBtn");
+    if (btn) {
+        btn.textContent = "Show layout details";
+    }
+    setConnectorStudioMeta(which, "");
+}
+
+function buildConnectorSampleTableHtml(rowMeta, rows) {
+    let cols = rowMeta && rowMeta.length
+        ? rowMeta
+        : (rows[0] || []).map(function (_, i) {
+            return {name: "c" + i, type: ""};
+        });
+    let html = '<div class="connector-studio-table-wrap"><table class="connector-studio-table">';
+    html += "<thead><tr>";
+    for (let c = 0; c < cols.length; c++) {
+        let name = cols[c].name || ("#" + c);
+        html += "<th>" + escapeHtmlText(name) + "</th>";
+    }
+    html += "</tr></thead><tbody>";
+    for (let r = 0; r < rows.length; r++) {
+        html += "<tr>";
+        let row = rows[r] || [];
+        for (let c = 0; c < cols.length; c++) {
+            let cell = c < row.length ? row[c] : "";
+            if (cell === null || cell === undefined) {
+                cell = "";
+            }
+            html += "<td>" + escapeHtmlText(String(cell)) + "</td>";
+        }
+        html += "</tr>";
+    }
+    html += "</tbody></table></div>";
+    return html;
+}
+
+function buildConnectorLayoutTableHtml(rowMeta) {
+    if (!rowMeta || !rowMeta.length) {
+        return '<p class="connector-studio-placeholder">No layout (row meta) available</p>';
+    }
+    let html = '<div class="connector-studio-table-wrap"><table class="connector-studio-table connector-studio-layout-table">';
+    html += "<thead><tr><th>Name</th><th>Type</th><th>Length</th><th>Precision</th></tr></thead><tbody>";
+    for (let i = 0; i < rowMeta.length; i++) {
+        let v = rowMeta[i] || {};
+        html += "<tr>"
+            + "<td>" + escapeHtmlText(v.name || "") + "</td>"
+            + "<td>" + escapeHtmlText(v.type || "") + "</td>"
+            + "<td>" + escapeHtmlText(String(v.length !== undefined && v.length !== null ? v.length : "")) + "</td>"
+            + "<td>" + escapeHtmlText(String(v.precision !== undefined && v.precision !== null ? v.precision : "")) + "</td>"
+            + "</tr>";
+    }
+    html += "</tbody></table></div>";
+    return html;
+}
+
+/**
+ * Toggle layout details for input or output pane.
+ * @param {"input"|"output"} which
+ */
+function toggleConnectorLayoutDetails(which) {
+    let layoutEl = document.getElementById(
+        which === "input" ? "connectorInputLayout" : "connectorOutputLayout");
+    let btn = document.getElementById(
+        which === "input" ? "connectorInputLayoutBtn" : "connectorOutputLayoutBtn");
+    if (!layoutEl) {
+        return;
+    }
+    if (layoutEl.hasAttribute("hidden")) {
+        layoutEl.removeAttribute("hidden");
+        if (btn) {
+            btn.textContent = "Hide layout details";
+        }
+    } else {
+        layoutEl.setAttribute("hidden", "hidden");
+        if (btn) {
+            btn.textContent = "Show layout details";
+        }
+    }
+}
+
+function showConnectorStudioError(summary, detail) {
+    let panel = document.getElementById("connectorStudioError");
+    if (!panel) {
+        // Studio shell not present (e.g. early failure)
+        console.warn("connector studio error:", summary, detail);
+        return;
+    }
+    let summaryEl = document.getElementById("connectorStudioErrorSummary");
+    let detailEl = document.getElementById("connectorStudioErrorDetail");
+    let toggle = document.getElementById("connectorStudioErrorToggle");
+    if (summaryEl) {
+        summaryEl.textContent = summary || "Error";
+    }
+    if (detailEl) {
+        detailEl.textContent = detail || summary || "";
+        detailEl.setAttribute("hidden", "hidden");
+    }
+    if (toggle) {
+        toggle.textContent = "Details";
+        // Auto-expand when multi-line detail
+        if (detail && detail !== summary && detail.indexOf("\n") >= 0) {
+            detailEl.removeAttribute("hidden");
+            toggle.textContent = "Hide details";
+        }
+    }
+    panel.removeAttribute("hidden");
+}
+
+function clearConnectorStudioError() {
+    let panel = document.getElementById("connectorStudioError");
+    if (!panel) {
+        return;
+    }
+    panel.setAttribute("hidden", "hidden");
+    let summaryEl = document.getElementById("connectorStudioErrorSummary");
+    let detailEl = document.getElementById("connectorStudioErrorDetail");
+    if (summaryEl) {
+        summaryEl.textContent = "";
+    }
+    if (detailEl) {
+        detailEl.textContent = "";
+        detailEl.setAttribute("hidden", "hidden");
+    }
+}
+
+function toggleConnectorStudioErrorDetail() {
+    let detailEl = document.getElementById("connectorStudioErrorDetail");
+    let toggle = document.getElementById("connectorStudioErrorToggle");
+    if (!detailEl) {
+        return;
+    }
+    if (detailEl.hasAttribute("hidden")) {
+        detailEl.removeAttribute("hidden");
+        if (toggle) {
+            toggle.textContent = "Hide details";
+        }
+    } else {
+        detailEl.setAttribute("hidden", "hidden");
+        if (toggle) {
+            toggle.textContent = "Details";
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2644,7 +3523,7 @@ function saveDatabaseConnection() {
     }
     let status = document.getElementById("dbConnStatus");
     if (status) {
-        status.textContent = "Saving…";
+        status.textContent = "Saving...";
     }
     // Rename: delete old name after save if changed
     let previousName = oldDatabaseConnectionName;
@@ -2691,7 +3570,7 @@ function testDatabaseConnection() {
     }
     let status = document.getElementById("dbConnStatus");
     if (status) {
-        status.textContent = "Testing…";
+        status.textContent = "Testing...";
     }
     $.ajax({
         url: API_BASE + "metadata/database-connection/test/",
@@ -3418,45 +4297,1496 @@ function getStringList(json, fieldId, tableId) {
  * @param component
  * @param requestData
  */
+// ---------------------------------------------------------------------------
+// Presentation properties (name, theme, interactions, parameter mappings)
+// ---------------------------------------------------------------------------
+
+/** Working copy while the properties panel is open. */
+let presentationPropertiesWorking = null;
+/** Snapshot JSON string when the panel was opened (dirty detection). */
+let presentationPropertiesBaseline = null;
+/** Name when the panel was opened (for rename). */
+let presentationPropertiesOldName = null;
+/** Index of interaction being edited in the expanded form, or -1. */
+let presentationInteractionEditIndex = -1;
+/** Index of parameter mapping group being edited, or -1. */
+let presentationParamMapEditIndex = -1;
+/** True after user edits in the properties panel (or nested editors). */
+let presentationPropertiesDirty = false;
+
+function markPresentationPropertiesDirty() {
+    presentationPropertiesDirty = true;
+}
+
+function clearPresentationPropertiesDirty() {
+    presentationPropertiesDirty = false;
+    if (presentationPropertiesWorking) {
+        try {
+            presentationPropertiesBaseline = JSON.stringify(presentationPropertiesWorking);
+        } catch (e) {
+            presentationPropertiesBaseline = null;
+        }
+    }
+}
+
 /**
- * Legacy metadata form for presentation name/pages (static HTML).
- * Prefer the WYSIWYG editor (leanMode=edit) for structure changes.
+ * True if working copy or basic form fields differ from the load baseline.
  */
-function editPresentationMetadata() {
-    if (connectorNames === null) {
-        connectorNames = getConnectorNames();
+function isPresentationPropertiesDirty() {
+    if (presentationPropertiesDirty) {
+        return true;
+    }
+    if (!presentationPropertiesWorking || presentationPropertiesBaseline == null) {
+        return false;
+    }
+    // Include current form basics without mutating working copy permanently
+    let snap = JSON.parse(JSON.stringify(presentationPropertiesWorking));
+    let nameEl = document.getElementById("presPropName");
+    let descEl = document.getElementById("presPropDescription");
+    let themeEl = document.getElementById("presPropDefaultTheme");
+    if (nameEl) {
+        snap.name = nameEl.value.trim();
+    }
+    if (descEl) {
+        snap.description = descEl.value;
+    }
+    if (themeEl) {
+        snap.defaultThemeName = themeEl.value;
+    }
+    try {
+        return JSON.stringify(snap) !== presentationPropertiesBaseline;
+    } catch (e) {
+        return presentationPropertiesDirty;
+    }
+}
+
+/**
+ * Ensure the presentation title bar exists and is wired (edit: clickable; view: label only).
+ */
+function installPresentationTitleBar() {
+    let bar = document.getElementById("presentationTitleBar");
+    let link = document.getElementById("presentationTitleLink");
+    if (!bar || !link) {
+        // Inject if template omitted it
+        if (!bar && typeof presentationName !== "undefined" && presentationName) {
+            bar = document.createElement("div");
+            bar.id = "presentationTitleBar";
+            bar.className = "presentation-title-bar"
+                + (isEditMode() ? "" : " presentation-title-bar-view");
+            if (isEditMode()) {
+                bar.innerHTML = '<a href="#" id="presentationTitleLink" class="presentation-title-link"></a>';
+            } else {
+                bar.innerHTML = '<span id="presentationTitleLink" class="presentation-title-text"></span>';
+            }
+            document.body.insertBefore(bar, document.body.firstChild);
+            link = document.getElementById("presentationTitleLink");
+        }
+    }
+    if (!link || typeof presentationName === "undefined") {
+        return;
+    }
+    link.textContent = presentationName || "";
+    if (isEditMode() && link.tagName === "A" && !link._leanPropsWired) {
+        link._leanPropsWired = true;
+        link.addEventListener("click", function (e) {
+            e.preventDefault();
+            openPresentationProperties();
+        });
+    }
+}
+
+function updatePresentationTitleBar(name) {
+    let link = document.getElementById("presentationTitleLink");
+    if (link) {
+        link.textContent = name || "";
+    }
+    if (typeof document !== "undefined" && name) {
+        // Keep document title roughly in sync
+        let t = document.title || "";
+        if (t.indexOf("(edit)") >= 0 || t.indexOf("(view)") >= 0) {
+            document.title = t.replace(/^[^ ]+/, name);
+        }
+    }
+}
+
+/**
+ * Open the presentation properties side panel (edit mode).
+ */
+function openPresentationProperties() {
+    if (!isEditMode()) {
+        return;
+    }
+    if (typeof presentationName === "undefined" || !presentationName) {
+        alert("No presentation is open");
+        return;
     }
     if (themeNames === null) {
         themeNames = getThemeNames();
     }
-
+    setSidePanelOpen(true, {withPreview: false});
+    let editArea = document.getElementById("editArea");
+    if (editArea) {
+        editArea.innerHTML = "<p class=\"editor-hint\">Loading presentation...</p>";
+    }
     $.ajax({
-        url: API_BASE + "metadata/presentation/" + presentationName + "/",
+        url: API_BASE + "metadata/presentation/" + encodeURIComponent(presentationName),
         type: "GET",
-        contentType: "application/json; charset=utf-8",
         dataType: "json",
         success: function (json) {
-            presentationJson = json;
-            openEditArea("/lean/api/static/edit/edit-presentation.html");
+            presentationJson = json || {};
+            presentationPropertiesWorking = JSON.parse(JSON.stringify(presentationJson));
+            if (!presentationPropertiesWorking.interactions) {
+                presentationPropertiesWorking.interactions = [];
+            }
+            if (!presentationPropertiesWorking.parameterMappings) {
+                presentationPropertiesWorking.parameterMappings = [];
+            }
+            if (!presentationPropertiesWorking.themes) {
+                presentationPropertiesWorking.themes = [];
+            }
+            presentationPropertiesOldName = presentationPropertiesWorking.name || presentationName;
+            presentationInteractionEditIndex = -1;
+            presentationParamMapEditIndex = -1;
+            clearPresentationPropertiesDirty();
+            renderPresentationPropertiesForm();
+            // Load header/footer state into form fields
+            loadPresentationHeaderFooterIntoForm();
         },
-        error: function (request, status, error) {
-            alert(request.responseText);
+        error: function (xhr) {
+            alert("Failed to load presentation: " + (xhr.responseText || xhr.status));
+            setSidePanelOpen(false);
         }
     });
 }
 
-function savePresentation() {
-    alert("save presentation JSON: " + JSON.stringify(presentationJson));
-    closePresentation();
+/** @deprecated use openPresentationProperties */
+function editPresentationMetadata() {
+    openPresentationProperties();
 }
 
-function closePresentation() {
+function loadPresentationHeaderFooterIntoForm() {
+    if (typeof presentationName === "undefined") {
+        return;
+    }
+    $.ajax({
+        url: API_BASE + "edit/presentation/" + encodeURIComponent(presentationName) + "/header-footer/",
+        type: "GET",
+        dataType: "json",
+        success: function (state) {
+            let h = (state && state.header) || {enabled: false, height: 50};
+            let f = (state && state.footer) || {enabled: false, height: 25};
+            let chkH = document.getElementById("presPropHeaderEnabled");
+            let chkF = document.getElementById("presPropFooterEnabled");
+            let hH = document.getElementById("presPropHeaderHeight");
+            let hF = document.getElementById("presPropFooterHeight");
+            if (chkH) {
+                chkH.checked = !!h.enabled;
+            }
+            if (chkF) {
+                chkF.checked = !!f.enabled;
+            }
+            if (hH) {
+                hH.value = h.height != null ? h.height : 50;
+            }
+            if (hF) {
+                hF.value = f.height != null ? f.height : 25;
+            }
+        }
+    });
+}
+
+function renderPresentationPropertiesForm() {
+    let w = presentationPropertiesWorking;
+    if (!w) {
+        return;
+    }
+    let themes = themeNames || getThemeNames() || [];
+    let themeOpts = "";
+    let defTheme = w.defaultThemeName || "Default";
+    for (let i = 0; i < themes.length; i++) {
+        let t = themes[i];
+        if (!t) {
+            continue;
+        }
+        themeOpts += "<option value=\"" + escapeHtmlAttribute(t) + "\""
+            + (t === defTheme ? " selected" : "") + ">" + escapeHtmlText(t) + "</option>";
+    }
+    if (!themeOpts) {
+        themeOpts = "<option value=\"Default\">Default</option>";
+    }
+
+    let themesListHtml = buildPresentationThemesListHtml(w);
+
+    let html = "";
+    html += "<div class=\"form-action-bar\" id=\"formActionBar-presentation\">";
+    html += "<button type=\"button\" class=\"form-action-save\" id=\"presPropSave\">Save</button> ";
+    html += "<button type=\"button\" class=\"form-action-close\" id=\"presPropClose\">Close</button>";
+    html += "</div>";
+    html += "<h3>Presentation properties</h3>";
+    html += "<p id=\"presPropStatus\" class=\"editor-hint\" hidden></p>";
+
+    html += "<div class=\"pres-prop-section\">";
+    html += "<label for=\"presPropName\">Name</label><br>";
+    html += "<input type=\"text\" id=\"presPropName\" class=\"pres-prop-input\" value=\""
+        + escapeHtmlAttribute(w.name || "") + "\"><br>";
+    html += "<label for=\"presPropDescription\">Description</label><br>";
+    html += "<textarea id=\"presPropDescription\" class=\"pres-prop-textarea\" rows=\"2\">"
+        + escapeHtmlText(w.description || "") + "</textarea><br>";
+    html += "<label for=\"presPropDefaultTheme\">Default theme</label><br>";
+    html += "<select id=\"presPropDefaultTheme\" class=\"pres-prop-input\">" + themeOpts + "</select>";
+    html += "</div>";
+
+    html += "<div class=\"pres-prop-section\">";
+    html += "<h4>Themes on this presentation</h4>";
+    html += "<ul class=\"pres-prop-theme-list\" id=\"presPropThemeList\">" + themesListHtml + "</ul>";
+    html += "<label for=\"presPropAddTheme\">Add theme from metadata</label> ";
+    html += "<select id=\"presPropAddTheme\" class=\"pres-prop-input-sm\">" + themeOpts + "</select> ";
+    html += "<button type=\"button\" id=\"presPropAddThemeBtn\" class=\"home-btn\">Add</button>";
+    html += "<p class=\"editor-hint\">Embedded themes travel with the presentation. "
+        + "Default theme is loaded from metadata at render time if not embedded.</p>";
+    html += "</div>";
+
+    html += "<div class=\"pres-prop-section\">";
+    html += "<h4>Header / Footer</h4>";
+    html += "<label><input type=\"checkbox\" id=\"presPropHeaderEnabled\"> Header enabled</label> ";
+    html += "height <input type=\"number\" id=\"presPropHeaderHeight\" class=\"pres-prop-num\" min=\"0\" value=\"50\"> px<br>";
+    html += "<label><input type=\"checkbox\" id=\"presPropFooterEnabled\"> Footer enabled</label> ";
+    html += "height <input type=\"number\" id=\"presPropFooterHeight\" class=\"pres-prop-num\" min=\"0\" value=\"25\"> px";
+    html += "<p class=\"editor-hint\">Header/footer content is edited via the left rail when enabled.</p>";
+    html += "</div>";
+
+    html += "<div class=\"pres-prop-section\">";
+    html += "<div class=\"pres-prop-section-head\">";
+    html += "<h4>Interactions</h4>";
+    html += "<span>";
+    html += "<button type=\"button\" id=\"presPropAddInteraction\" class=\"home-btn\" title=\"Blank interaction\">+ Add</button> ";
+    html += "<button type=\"button\" id=\"presPropPresetTableDrill\" class=\"home-btn\" "
+        + "title=\"Preset: table cell click opens another presentation\">Table drill-down</button>";
+    html += "</span>";
+    html += "</div>";
+    html += "<p class=\"editor-hint\">Drill-down: table cell click opens another presentation "
+        + "(optionally sets a parameter from the cell value). "
+        + "Test interactions in <strong>view</strong> mode after Save.</p>";
+    html += "<div id=\"presPropInteractionsList\"></div>";
+    html += "<div id=\"presPropInteractionEditor\" class=\"pres-prop-nested-editor\" hidden></div>";
+    html += "</div>";
+
+    html += "<div class=\"pres-prop-section\">";
+    html += "<div class=\"pres-prop-section-head\">";
+    html += "<h4>Parameter mappings</h4>";
+    html += "<button type=\"button\" id=\"presPropAddParamMap\" class=\"home-btn\">+ Add</button>";
+    html += "</div>";
+    html += "<p class=\"editor-hint\">Map connector fields to presentation parameters "
+        + "(e.g. for labels using \${PARAM}). Used by drill-down targets like execution-details.</p>";
+    html += "<div id=\"presPropParamMapsList\"></div>";
+    html += "<div id=\"presPropParamMapEditor\" class=\"pres-prop-nested-editor\" hidden></div>";
+    html += "</div>";
+
+    let editArea = document.getElementById("editArea");
+    if (!editArea) {
+        return;
+    }
+    editArea.innerHTML = html;
+
+    document.getElementById("presPropSave").onclick = function () {
+        savePresentationProperties();
+    };
+    document.getElementById("presPropClose").onclick = function () {
+        closePresentationProperties();
+    };
+    document.getElementById("presPropAddThemeBtn").onclick = function () {
+        addPresentationThemeFromMetadata();
+    };
+    document.getElementById("presPropAddInteraction").onclick = function () {
+        addPresentationInteraction(null);
+    };
+    document.getElementById("presPropPresetTableDrill").onclick = function () {
+        addPresentationInteraction({preset: "table-drill"});
+    };
+    document.getElementById("presPropAddParamMap").onclick = function () {
+        addPresentationParamMapping();
+    };
+    wirePresentationThemeListRemove();
+    // Mark dirty when basic fields change
+    ["presPropName", "presPropDescription", "presPropDefaultTheme",
+        "presPropHeaderEnabled", "presPropFooterEnabled",
+        "presPropHeaderHeight", "presPropFooterHeight"].forEach(function (id) {
+        let el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("change", markPresentationPropertiesDirty);
+            el.addEventListener("input", markPresentationPropertiesDirty);
+        }
+    });
+
+    refreshPresentationInteractionsList();
+    refreshPresentationParamMapsList();
+}
+
+function buildPresentationThemesListHtml(w) {
+    if (!w.themes || !w.themes.length) {
+        return "<li class=\"editor-hint\">(none embedded - default theme loaded from metadata)</li>";
+    }
+    let html = "";
+    for (let i = 0; i < w.themes.length; i++) {
+        let th = w.themes[i];
+        if (!th || !th.name) {
+            continue;
+        }
+        html += "<li class=\"pres-prop-theme-item\">";
+        html += "<span>" + escapeHtmlText(th.name) + "</span> ";
+        html += "<button type=\"button\" class=\"home-btn-small\" data-theme-remove=\""
+            + escapeHtmlAttribute(th.name) + "\" title=\"Remove embedded theme\">Remove</button>";
+        html += "</li>";
+    }
+    return html || "<li class=\"editor-hint\">(none embedded)</li>";
+}
+
+function wirePresentationThemeListRemove() {
+    let list = document.getElementById("presPropThemeList");
+    if (!list) {
+        return;
+    }
+    list.onclick = function (e) {
+        let t = e.target;
+        if (!t || !t.getAttribute || t.getAttribute("data-theme-remove") == null) {
+            return;
+        }
+        removePresentationTheme(t.getAttribute("data-theme-remove"));
+    };
+}
+
+function removePresentationTheme(themeName) {
+    if (!presentationPropertiesWorking || !themeName) {
+        return;
+    }
+    let w = presentationPropertiesWorking;
+    let def = (document.getElementById("presPropDefaultTheme")
+        || {}).value || w.defaultThemeName;
+    if (def === themeName) {
+        if (!confirm("Remove embedded theme \"" + themeName
+            + "\"? It is the default theme name (will still load from metadata if available).")) {
+            return;
+        }
+    }
+    w.themes = (w.themes || []).filter(function (th) {
+        return th && th.name !== themeName;
+    });
+    markPresentationPropertiesDirty();
+    // Re-render theme list only to avoid collapsing nested editors
+    let list = document.getElementById("presPropThemeList");
+    if (list) {
+        list.innerHTML = buildPresentationThemesListHtml(w);
+        wirePresentationThemeListRemove();
+    }
+}
+
+function collectPresentationPropertiesBasics() {
+    let w = presentationPropertiesWorking;
+    if (!w) {
+        return;
+    }
+    let nameEl = document.getElementById("presPropName");
+    let descEl = document.getElementById("presPropDescription");
+    let themeEl = document.getElementById("presPropDefaultTheme");
+    if (nameEl) {
+        w.name = nameEl.value.trim();
+    }
+    if (descEl) {
+        w.description = descEl.value;
+    }
+    if (themeEl) {
+        w.defaultThemeName = themeEl.value;
+    }
+}
+
+function addPresentationThemeFromMetadata() {
+    let sel = document.getElementById("presPropAddTheme");
+    if (!sel || !sel.value || !presentationPropertiesWorking) {
+        return;
+    }
+    let themeName = sel.value;
+    let w = presentationPropertiesWorking;
+    if (!w.themes) {
+        w.themes = [];
+    }
+    for (let i = 0; i < w.themes.length; i++) {
+        if (w.themes[i] && w.themes[i].name === themeName) {
+            alert("Theme already attached: " + themeName);
+            return;
+        }
+    }
+    $.ajax({
+        url: API_BASE + "metadata/theme/" + encodeURIComponent(themeName),
+        type: "GET",
+        dataType: "json",
+        success: function (themeJson) {
+            if (themeJson) {
+                w.themes.push(themeJson);
+                markPresentationPropertiesDirty();
+                let list = document.getElementById("presPropThemeList");
+                if (list) {
+                    list.innerHTML = buildPresentationThemesListHtml(w);
+                    wirePresentationThemeListRemove();
+                } else {
+                    renderPresentationPropertiesForm();
+                }
+            }
+        },
+        error: function (xhr) {
+            alert("Failed to load theme: " + (xhr.responseText || xhr.status));
+        }
+    });
+}
+
+/**
+ * Ensure defaultThemeName is either embedded in presentation.themes or loadable from metadata.
+ * If missing from both, tries to embed from metadata before save.
+ */
+function ensureDefaultThemeEmbedded(w, done) {
+    let def = (w && w.defaultThemeName) ? w.defaultThemeName.trim() : "";
+    if (!def) {
+        if (done) {
+            done();
+        }
+        return;
+    }
+    if (!w.themes) {
+        w.themes = [];
+    }
+    for (let i = 0; i < w.themes.length; i++) {
+        if (w.themes[i] && w.themes[i].name === def) {
+            if (done) {
+                done();
+            }
+            return;
+        }
+    }
+    // Not embedded - engine loads from metadata at layout; optional embed for portability
+    $.ajax({
+        url: API_BASE + "metadata/theme/" + encodeURIComponent(def),
+        type: "GET",
+        dataType: "json",
+        success: function (themeJson) {
+            if (themeJson && themeJson.name) {
+                w.themes.push(themeJson);
+            }
+            if (done) {
+                done();
+            }
+        },
+        error: function () {
+            // Leave defaultThemeName as-is; layout may still resolve it
+            if (done) {
+                done();
+            }
+        }
+    });
+}
+
+// ── Interactions ──────────────────────────────────────────────────────────
+
+function interactionSummary(ix) {
+    if (!ix) {
+        return "(empty)";
+    }
+    let method = ix.method || {};
+    let click = method.mouseDoubleClick ? "Double-click" : "Click";
+    let loc = ix.location || {};
+    // ASCII separators only (avoid UTF-8 mojibake if charset is wrong)
+    let where = (loc.componentName || "?")
+        + (loc.itemCategory ? " | " + loc.itemCategory : "")
+        + (loc.dimensionColumns && loc.dimensionColumns.length
+            ? " | [" + loc.dimensionColumns.join(", ") + "]" : "");
+    let act = (ix.actions && ix.actions[0]) || {};
+    let target = act.objectName
+        ? ("-> " + act.objectName)
+        : "-> (presentation = cell value)";
+    if (act.valueParameter) {
+        target += " (param " + act.valueParameter + ")";
+    }
+    return click + " on " + where + " " + target;
+}
+
+function refreshPresentationInteractionsList() {
+    let root = document.getElementById("presPropInteractionsList");
+    if (!root || !presentationPropertiesWorking) {
+        return;
+    }
+    let list = presentationPropertiesWorking.interactions || [];
+    if (!list.length) {
+        root.innerHTML = "<p class=\"editor-hint\">No interactions yet.</p>";
+        return;
+    }
+    let html = "<ul class=\"pres-prop-card-list\">";
+    for (let i = 0; i < list.length; i++) {
+        html += "<li class=\"pres-prop-card\">";
+        html += "<div class=\"pres-prop-card-summary\">" + escapeHtmlText(interactionSummary(list[i])) + "</div>";
+        html += "<div class=\"pres-prop-card-actions\">";
+        html += "<button type=\"button\" data-ix-edit=\"" + i + "\">Edit</button> ";
+        html += "<button type=\"button\" data-ix-up=\"" + i + "\" title=\"Move up\">Up</button> ";
+        html += "<button type=\"button\" data-ix-down=\"" + i + "\" title=\"Move down\">Down</button> ";
+        html += "<button type=\"button\" data-ix-del=\"" + i + "\" title=\"Delete\">Del</button>";
+        html += "</div></li>";
+    }
+    html += "</ul>";
+    root.innerHTML = html;
+    root.onclick = function (e) {
+        let t = e.target;
+        if (!t || !t.getAttribute) {
+            return;
+        }
+        if (t.getAttribute("data-ix-edit") != null) {
+            openPresentationInteractionEditor(parseInt(t.getAttribute("data-ix-edit"), 10));
+        } else if (t.getAttribute("data-ix-del") != null) {
+            let di = parseInt(t.getAttribute("data-ix-del"), 10);
+            presentationPropertiesWorking.interactions.splice(di, 1);
+            presentationInteractionEditIndex = -1;
+            hidePresentationInteractionEditor();
+            markPresentationPropertiesDirty();
+            refreshPresentationInteractionsList();
+        } else if (t.getAttribute("data-ix-up") != null) {
+            let ui = parseInt(t.getAttribute("data-ix-up"), 10);
+            if (ui > 0) {
+                let a = presentationPropertiesWorking.interactions;
+                let tmp = a[ui - 1];
+                a[ui - 1] = a[ui];
+                a[ui] = tmp;
+                markPresentationPropertiesDirty();
+                refreshPresentationInteractionsList();
+            }
+        } else if (t.getAttribute("data-ix-down") != null) {
+            let di2 = parseInt(t.getAttribute("data-ix-down"), 10);
+            let a2 = presentationPropertiesWorking.interactions;
+            if (di2 < a2.length - 1) {
+                let tmp2 = a2[di2 + 1];
+                a2[di2 + 1] = a2[di2];
+                a2[di2] = tmp2;
+                markPresentationPropertiesDirty();
+                refreshPresentationInteractionsList();
+            }
+        }
+    };
+}
+
+/**
+ * @param {{preset?: string}|null} opts  preset "table-drill" fills table cell location defaults
+ */
+function addPresentationInteraction(opts) {
+    if (!presentationPropertiesWorking.interactions) {
+        presentationPropertiesWorking.interactions = [];
+    }
+    let pageComps = (typeof window.leanEdit !== "undefined" && window.leanEdit.getPageComponents)
+        ? (window.leanEdit.getPageComponents() || [])
+        : [];
+    // Prefer first table-like component for drill-down preset
+    let defaultComp = "";
+    let defaultPlugin = "LeanTableComponent";
+    for (let i = 0; i < pageComps.length; i++) {
+        let p = pageComps[i];
+        if (p && p.pluginId && String(p.pluginId).indexOf("Table") >= 0) {
+            defaultComp = p.name || "";
+            defaultPlugin = p.pluginId;
+            break;
+        }
+    }
+    if (!defaultComp && pageComps.length && pageComps[0].name) {
+        defaultComp = pageComps[0].name;
+        defaultPlugin = pageComps[0].pluginId || defaultPlugin;
+    }
+    let isPreset = opts && opts.preset === "table-drill";
+    presentationPropertiesWorking.interactions.push({
+        method: {mouseClick: true, mouseDoubleClick: false},
+        location: {
+            componentName: isPreset ? defaultComp : "",
+            componentPluginId: isPreset ? defaultPlugin : "LeanTableComponent",
+            itemType: "ComponentItem",
+            itemCategory: "Cell",
+            dimensionColumns: []
+        },
+        actions: [{
+            actionType: "OPEN_PRESENTATION",
+            objectName: "",
+            valueParameter: ""
+        }]
+    });
+    markPresentationPropertiesDirty();
+    let idx = presentationPropertiesWorking.interactions.length - 1;
+    refreshPresentationInteractionsList();
+    openPresentationInteractionEditor(idx);
+}
+
+function hidePresentationInteractionEditor() {
+    let ed = document.getElementById("presPropInteractionEditor");
+    if (ed) {
+        ed.setAttribute("hidden", "hidden");
+        ed.innerHTML = "";
+    }
+    presentationInteractionEditIndex = -1;
+}
+
+function openPresentationInteractionEditor(index) {
+    let list = presentationPropertiesWorking.interactions || [];
+    if (index < 0 || index >= list.length) {
+        return;
+    }
+    presentationInteractionEditIndex = index;
+    let ix = list[index];
+    let loc = ix.location || {};
+    let act = (ix.actions && ix.actions[0]) || {};
+    let method = ix.method || {};
+    let selectedDims = loc.dimensionColumns || [];
+
+    // Prefer live page component list (name + pluginId) from edit mode
+    let pageComps = (typeof window.leanEdit !== "undefined" && window.leanEdit.getPageComponents)
+        ? (window.leanEdit.getPageComponents() || [])
+        : [];
+    let pluginByName = {};
+    for (let i = 0; i < pageComps.length; i++) {
+        if (pageComps[i] && pageComps[i].name) {
+            pluginByName[pageComps[i].name] = pageComps[i].pluginId || "";
+        }
+    }
+    let componentNamesList = pageComps.length
+        ? pageComps.map(function (c) {
+            return c.name;
+        }).filter(Boolean)
+        : getPresentationComponentNamesForProps();
+
+    let compOptions = "<option value=\"\">- select -</option>";
+    for (let i = 0; i < componentNamesList.length; i++) {
+        let cn = componentNamesList[i];
+        compOptions += "<option value=\"" + escapeHtmlAttribute(cn) + "\""
+            + (cn === (loc.componentName || "") ? " selected" : "") + ">"
+            + escapeHtmlText(cn) + "</option>";
+    }
+    // Keep a free-text fallback if the stored name is not on the current page
+    if (loc.componentName && componentNamesList.indexOf(loc.componentName) < 0) {
+        compOptions += "<option value=\"" + escapeHtmlAttribute(loc.componentName)
+            + "\" selected>" + escapeHtmlText(loc.componentName) + " (other page)</option>";
+    }
+
+    let presOptions = "<option value=\"\">(use clicked cell value)</option>";
+    let presentations = getPresentationNamesList();
+    for (let i = 0; i < presentations.length; i++) {
+        let pn = presentations[i];
+        if (!pn) {
+            continue;
+        }
+        presOptions += "<option value=\"" + escapeHtmlAttribute(pn) + "\""
+            + (pn === (act.objectName || "") ? " selected" : "") + ">"
+            + escapeHtmlText(pn) + "</option>";
+    }
+
+    let colNames = getPresentationComponentColumnNames(loc.componentName || "");
+    let dimCheckHtml = buildDimensionColumnsChecklist(colNames, selectedDims);
+
+    let html = "<h5>Edit interaction</h5>";
+    html += "<p class=\"editor-hint\">Preset tip: use <strong>Table drill-down</strong> for "
+        + "cell click -&gt; OPEN_PRESENTATION.</p>";
+    html += "<label>Method</label><br>";
+    html += "<label><input type=\"radio\" name=\"ixMethod\" value=\"click\""
+        + (!method.mouseDoubleClick ? " checked" : "") + "> Single click</label> ";
+    html += "<label><input type=\"radio\" name=\"ixMethod\" value=\"dbl\""
+        + (method.mouseDoubleClick ? " checked" : "") + "> Double click</label><br><br>";
+
+    html += "<label for=\"ixComponentName\">Component name</label><br>";
+    html += "<select id=\"ixComponentName\" class=\"pres-prop-input\">" + compOptions + "</select><br>";
+    html += "<label for=\"ixPluginId\">Component plugin id</label><br>";
+    html += "<input type=\"text\" id=\"ixPluginId\" class=\"pres-prop-input\" value=\""
+        + escapeHtmlAttribute(loc.componentPluginId || "LeanTableComponent") + "\"><br>";
+    html += "<label for=\"ixItemType\">Item type</label><br>";
+    html += "<select id=\"ixItemType\" class=\"pres-prop-input\">";
+    ["ComponentItem", "Component"].forEach(function (t) {
+        html += "<option value=\"" + t + "\"" + (t === (loc.itemType || "ComponentItem") ? " selected" : "")
+            + ">" + t + "</option>";
+    });
+    html += "</select><br>";
+    html += "<label for=\"ixItemCategory\">Item category</label><br>";
+    html += "<select id=\"ixItemCategory\" class=\"pres-prop-input\">";
+    ["Cell", "ChartSeriesLabel", ""].forEach(function (t) {
+        let lab = t || "(any)";
+        html += "<option value=\"" + escapeHtmlAttribute(t) + "\""
+            + (t === (loc.itemCategory || "Cell") ? " selected" : "") + ">" + lab + "</option>";
+    });
+    html += "</select><br>";
+    html += "<label>Dimension columns</label>";
+    html += "<p class=\"editor-hint\">Match only cells for these columns "
+        + "(empty = any column). Required for multi-column tables.</p>";
+    html += "<div id=\"ixDimensionsBox\" class=\"pres-prop-check-list\">" + dimCheckHtml + "</div>";
+    html += "<label for=\"ixDimensionsExtra\">Extra dimensions (comma-separated)</label><br>";
+    html += "<input type=\"text\" id=\"ixDimensionsExtra\" class=\"pres-prop-input\" value=\"\" "
+        + "placeholder=\"optional names not listed above\"><br><br>";
+
+    html += "<label>Action</label><br>";
+    html += "<input type=\"hidden\" id=\"ixActionType\" value=\"OPEN_PRESENTATION\">";
+    html += "<span class=\"editor-hint\">OPEN_PRESENTATION</span><br>";
+    html += "<label for=\"ixObjectName\">Target presentation</label><br>";
+    html += "<select id=\"ixObjectName\" class=\"pres-prop-input\">" + presOptions + "</select><br>";
+    html += "<label for=\"ixValueParameter\">Set parameter from cell value</label><br>";
+    html += "<input type=\"text\" id=\"ixValueParameter\" class=\"pres-prop-input\" value=\""
+        + escapeHtmlAttribute(act.valueParameter || "") + "\" "
+        + "placeholder=\"e.g. EXECUTION_ID\"><br><br>";
+
+    html += "<button type=\"button\" id=\"ixEditorOk\" class=\"form-action-save\">OK</button> ";
+    html += "<button type=\"button\" id=\"ixEditorCancel\" class=\"form-action-close\">Cancel</button>";
+
+    let ed = document.getElementById("presPropInteractionEditor");
+    ed.innerHTML = html;
+    ed.removeAttribute("hidden");
+    document.getElementById("ixEditorOk").onclick = function () {
+        commitPresentationInteractionEditor();
+    };
+    document.getElementById("ixEditorCancel").onclick = function () {
+        hidePresentationInteractionEditor();
+    };
+    document.getElementById("ixComponentName").onchange = function () {
+        let name = this.value;
+        let pluginEl = document.getElementById("ixPluginId");
+        if (pluginEl && name && pluginByName[name]) {
+            pluginEl.value = pluginByName[name];
+        }
+        // Refresh dimension checklist for the selected component
+        let box = document.getElementById("ixDimensionsBox");
+        if (box) {
+            let current = collectDimensionColumnsFromEditor();
+            box.innerHTML = buildDimensionColumnsChecklist(
+                getPresentationComponentColumnNames(name), current);
+        }
+    };
+}
+
+function buildDimensionColumnsChecklist(colNames, selected) {
+    selected = selected || [];
+    let selectedSet = {};
+    for (let i = 0; i < selected.length; i++) {
+        selectedSet[selected[i]] = true;
+    }
+    if (!colNames || !colNames.length) {
+        return "<p class=\"editor-hint\">No columns found for this component "
+            + "(pick a table component or type extra names below).</p>";
+    }
+    let html = "";
+    for (let i = 0; i < colNames.length; i++) {
+        let c = colNames[i];
+        html += "<label class=\"pres-prop-check\">"
+            + "<input type=\"checkbox\" class=\"ix-dim-cb\" value=\""
+            + escapeHtmlAttribute(c) + "\""
+            + (selectedSet[c] ? " checked" : "") + "> "
+            + escapeHtmlText(c) + "</label> ";
+    }
+    return html;
+}
+
+function collectDimensionColumnsFromEditor() {
+    let dims = [];
+    let boxes = document.querySelectorAll("#ixDimensionsBox .ix-dim-cb:checked");
+    for (let i = 0; i < boxes.length; i++) {
+        if (boxes[i].value) {
+            dims.push(boxes[i].value);
+        }
+    }
+    let extraEl = document.getElementById("ixDimensionsExtra");
+    let extraRaw = extraEl ? (extraEl.value || "").trim() : "";
+    if (extraRaw) {
+        extraRaw.split(",").forEach(function (s) {
+            s = s.trim();
+            if (s && dims.indexOf(s) < 0) {
+                dims.push(s);
+            }
+        });
+    }
+    return dims;
+}
+
+/**
+ * Column names for a component: table columnSelection, else describe(sourceConnectorName).
+ */
+function getPresentationComponentColumnNames(componentName) {
+    let names = [];
+    if (!componentName || !presentationPropertiesWorking) {
+        return names;
+    }
+    let pages = presentationPropertiesWorking.pages || [];
+    function considerComponent(lc) {
+        if (!lc || lc.name !== componentName) {
+            return;
+        }
+        let pluginWrap = lc.component;
+        if (!pluginWrap || typeof pluginWrap !== "object") {
+            return;
+        }
+        let inner = null;
+        let keys = Object.keys(pluginWrap);
+        if (keys.length === 1 && typeof pluginWrap[keys[0]] === "object") {
+            inner = pluginWrap[keys[0]];
+        } else {
+            inner = pluginWrap;
+        }
+        if (!inner) {
+            return;
+        }
+        let cols = inner.columnSelection || inner.columns || [];
+        for (let i = 0; i < cols.length; i++) {
+            let cn = cols[i] && (cols[i].columnName || cols[i].name);
+            if (cn && names.indexOf(cn) < 0) {
+                names.push(cn);
+            }
+        }
+        if (!names.length && inner.sourceConnectorName
+            && typeof getConnectorColumnNames === "function") {
+            let fromConn = getConnectorColumnNames(inner.sourceConnectorName) || [];
+            for (let j = 0; j < fromConn.length; j++) {
+                if (fromConn[j] && names.indexOf(fromConn[j]) < 0) {
+                    names.push(fromConn[j]);
+                }
+            }
+        }
+    }
+    for (let p = 0; p < pages.length; p++) {
+        let comps = (pages[p] && pages[p].components) || [];
+        for (let c = 0; c < comps.length; c++) {
+            considerComponent(comps[c]);
+        }
+    }
+    // Header / footer components
+    [["header"], ["footer"]].forEach(function (keyArr) {
+        let band = presentationPropertiesWorking[keyArr[0]];
+        if (band && band.components) {
+            for (let i = 0; i < band.components.length; i++) {
+                considerComponent(band.components[i]);
+            }
+        }
+    });
+    return names;
+}
+
+function commitPresentationInteractionEditor() {
+    let idx = presentationInteractionEditIndex;
+    if (idx < 0 || !presentationPropertiesWorking) {
+        return;
+    }
+    let componentName = document.getElementById("ixComponentName").value || "";
+    if (!componentName.trim()) {
+        alert("Component name is required for the interaction location.");
+        return;
+    }
+    let methodVal = document.querySelector("input[name=\"ixMethod\"]:checked");
+    let isDbl = methodVal && methodVal.value === "dbl";
+    let dims = collectDimensionColumnsFromEditor();
+    let pluginId = (document.getElementById("ixPluginId").value || "").trim();
+    // Prefer the real plugin id from the page component list when known
+    if (typeof window.leanEdit !== "undefined" && window.leanEdit.getPageComponents) {
+        let pcs = window.leanEdit.getPageComponents() || [];
+        for (let pi = 0; pi < pcs.length; pi++) {
+            if (pcs[pi] && pcs[pi].name === componentName && pcs[pi].pluginId) {
+                // If the plugin field was left blank or mistakenly set to a component name, fix it
+                if (!pluginId || pluginId === componentName || !pluginId.startsWith("Lean")) {
+                    pluginId = pcs[pi].pluginId;
+                }
+                break;
+            }
+        }
+    }
+    let itemType = document.getElementById("ixItemType").value || "ComponentItem";
+    let itemCategory = document.getElementById("ixItemCategory").value || "";
+    // Whole-component interactions do not use item category / dimensions
+    if (itemType === "Component") {
+        itemCategory = "";
+        dims = [];
+    }
+    presentationPropertiesWorking.interactions[idx] = {
+        method: {mouseClick: !isDbl, mouseDoubleClick: !!isDbl},
+        location: {
+            componentName: componentName,
+            componentPluginId: pluginId,
+            itemType: itemType,
+            itemCategory: itemCategory,
+            dimensionColumns: dims
+        },
+        actions: [{
+            actionType: "OPEN_PRESENTATION",
+            objectName: document.getElementById("ixObjectName").value || null,
+            valueParameter: document.getElementById("ixValueParameter").value || null
+        }]
+    };
+    // Clean null empty strings for Hop friendliness
+    let a = presentationPropertiesWorking.interactions[idx].actions[0];
+    if (!a.objectName) {
+        delete a.objectName;
+    }
+    if (!a.valueParameter) {
+        delete a.valueParameter;
+    }
+    markPresentationPropertiesDirty();
+    hidePresentationInteractionEditor();
+    refreshPresentationInteractionsList();
+}
+
+function getPresentationComponentNamesForProps() {
+    let names = [];
+    if (typeof presentationName === "undefined" || !presentationName) {
+        return names;
+    }
+    // Prefer live page component list from edit mode if exposed
+    if (typeof window.leanEdit !== "undefined" && window.leanEdit.getComponentNames) {
+        return window.leanEdit.getComponentNames() || [];
+    }
+    // Sync fetch component names for current page
+    if (typeof renderId !== "undefined" && renderId) {
+        $.ajax({
+            url: API_BASE + "render/info/components/" + encodeURIComponent(renderId)
+                + "/" + encodeURIComponent(renderPageNumber0 || 0) + "/",
+            type: "GET",
+            dataType: "json",
+            async: false,
+            success: function (list) {
+                if (Array.isArray(list)) {
+                    names = list;
+                } else if (list && list.names) {
+                    names = list.names;
+                }
+            }
+        });
+    }
+    if (!names.length && typeof presentationName !== "undefined") {
+        $.ajax({
+            url: API_BASE + "edit/presentation/" + encodeURIComponent(presentationName)
+                + "/pages/" + encodeURIComponent(renderPageNumber0 || 0) + "/components/",
+            type: "GET",
+            dataType: "json",
+            async: false,
+            success: function (list) {
+                if (Array.isArray(list)) {
+                    for (let i = 0; i < list.length; i++) {
+                        if (list[i] && list[i].name) {
+                            names.push(list[i].name);
+                        }
+                    }
+                }
+            }
+        });
+    }
+    return names;
+}
+
+function getPresentationNamesList() {
+    let names = [];
+    $.ajax({
+        url: API_BASE + "metadata/list/presentation/",
+        type: "GET",
+        dataType: "json",
+        async: false,
+        success: function (list) {
+            names = list || [];
+        },
+        error: function () {
+            $.ajax({
+                url: API_BASE + "metadata/presentations/",
+                type: "GET",
+                dataType: "json",
+                async: false,
+                success: function (list) {
+                    if (Array.isArray(list)) {
+                        names = list.map(function (p) {
+                            return p.name || p;
+                        });
+                    }
+                }
+            });
+        }
+    });
+    return names;
+}
+
+// ── Parameter mappings ────────────────────────────────────────────────────
+
+function paramMapSummary(pm) {
+    if (!pm) {
+        return "(empty)";
+    }
+    let maps = pm.mappings || [];
+    let bits = maps.map(function (m) {
+        return (m.fieldName || "?") + "->" + (m.parameterName || "?");
+    });
+    return (pm.connectorName || "?") + (bits.length ? ": " + bits.join(", ") : "");
+}
+
+function refreshPresentationParamMapsList() {
+    let root = document.getElementById("presPropParamMapsList");
+    if (!root || !presentationPropertiesWorking) {
+        return;
+    }
+    let list = presentationPropertiesWorking.parameterMappings || [];
+    if (!list.length) {
+        root.innerHTML = "<p class=\"editor-hint\">No parameter mappings yet.</p>";
+        return;
+    }
+    let html = "<ul class=\"pres-prop-card-list\">";
+    for (let i = 0; i < list.length; i++) {
+        html += "<li class=\"pres-prop-card\">";
+        html += "<div class=\"pres-prop-card-summary\">" + escapeHtmlText(paramMapSummary(list[i])) + "</div>";
+        html += "<div class=\"pres-prop-card-actions\">";
+        html += "<button type=\"button\" data-pm-edit=\"" + i + "\">Edit</button> ";
+        html += "<button type=\"button\" data-pm-up=\"" + i + "\" title=\"Move up\">Up</button> ";
+        html += "<button type=\"button\" data-pm-down=\"" + i + "\" title=\"Move down\">Down</button> ";
+        html += "<button type=\"button\" data-pm-del=\"" + i + "\" title=\"Delete\">Del</button>";
+        html += "</div></li>";
+    }
+    html += "</ul>";
+    root.innerHTML = html;
+    root.onclick = function (e) {
+        let t = e.target;
+        if (!t || !t.getAttribute) {
+            return;
+        }
+        if (t.getAttribute("data-pm-edit") != null) {
+            openPresentationParamMapEditor(parseInt(t.getAttribute("data-pm-edit"), 10));
+        } else if (t.getAttribute("data-pm-del") != null) {
+            presentationPropertiesWorking.parameterMappings.splice(
+                parseInt(t.getAttribute("data-pm-del"), 10), 1);
+            hidePresentationParamMapEditor();
+            markPresentationPropertiesDirty();
+            refreshPresentationParamMapsList();
+        } else if (t.getAttribute("data-pm-up") != null) {
+            let ui = parseInt(t.getAttribute("data-pm-up"), 10);
+            let a = presentationPropertiesWorking.parameterMappings;
+            if (ui > 0) {
+                let tmp = a[ui - 1];
+                a[ui - 1] = a[ui];
+                a[ui] = tmp;
+                markPresentationPropertiesDirty();
+                refreshPresentationParamMapsList();
+            }
+        } else if (t.getAttribute("data-pm-down") != null) {
+            let di = parseInt(t.getAttribute("data-pm-down"), 10);
+            let a = presentationPropertiesWorking.parameterMappings;
+            if (di < a.length - 1) {
+                let tmp = a[di + 1];
+                a[di + 1] = a[di];
+                a[di] = tmp;
+                markPresentationPropertiesDirty();
+                refreshPresentationParamMapsList();
+            }
+        }
+    };
+}
+
+function addPresentationParamMapping() {
+    if (!presentationPropertiesWorking.parameterMappings) {
+        presentationPropertiesWorking.parameterMappings = [];
+    }
+    presentationPropertiesWorking.parameterMappings.push({
+        connectorName: "",
+        separator: "",
+        mappings: [{fieldName: "", parameterName: ""}]
+    });
+    markPresentationPropertiesDirty();
+    refreshPresentationParamMapsList();
+    openPresentationParamMapEditor(presentationPropertiesWorking.parameterMappings.length - 1);
+}
+
+function hidePresentationParamMapEditor() {
+    let ed = document.getElementById("presPropParamMapEditor");
+    if (ed) {
+        ed.setAttribute("hidden", "hidden");
+        ed.innerHTML = "";
+    }
+    presentationParamMapEditIndex = -1;
+}
+
+function openPresentationParamMapEditor(index) {
+    let list = presentationPropertiesWorking.parameterMappings || [];
+    if (index < 0 || index >= list.length) {
+        return;
+    }
+    presentationParamMapEditIndex = index;
+    let pm = list[index];
+    let connOpts = "<option value=\"\">- select -</option>";
+    let conns = getConnectorNames().filter(function (n) {
+        return n;
+    });
+    for (let i = 0; i < conns.length; i++) {
+        connOpts += "<option value=\"" + escapeHtmlAttribute(conns[i]) + "\""
+            + (conns[i] === (pm.connectorName || "") ? " selected" : "") + ">"
+            + escapeHtmlText(conns[i]) + "</option>";
+    }
+
+    let fieldNames = pm.connectorName
+        ? (getConnectorColumnNames(pm.connectorName) || [])
+        : [];
+    let rows = pm.mappings || [];
+    let mapRows = "";
+    for (let r = 0; r < rows.length; r++) {
+        mapRows += buildParamMapFieldRowHtml(r, rows[r].fieldName || "",
+            rows[r].parameterName || "", fieldNames);
+    }
+    if (!mapRows) {
+        mapRows = buildParamMapFieldRowHtml(0, "", "", fieldNames);
+    }
+
+    let html = "<h5>Edit parameter mapping</h5>";
+    html += "<label for=\"pmConnector\">Connector</label><br>";
+    html += "<select id=\"pmConnector\" class=\"pres-prop-input\">" + connOpts + "</select><br>";
+    html += "<label for=\"pmSeparator\">Separator (multi-row join)</label><br>";
+    html += "<input type=\"text\" id=\"pmSeparator\" class=\"pres-prop-input\" value=\""
+        + escapeHtmlAttribute(pm.separator || "") + "\"><br>";
+    html += "<table class=\"pres-prop-map-table\"><thead><tr><th>Field name</th><th>Parameter name</th><th></th></tr></thead>";
+    html += "<tbody id=\"pmMapBody\">" + mapRows + "</tbody></table>";
+    html += "<button type=\"button\" id=\"pmAddRow\">+ Field</button><br><br>";
+    html += "<button type=\"button\" id=\"pmEditorOk\" class=\"form-action-save\">OK</button> ";
+    html += "<button type=\"button\" id=\"pmEditorCancel\" class=\"form-action-close\">Cancel</button>";
+
+    let ed = document.getElementById("presPropParamMapEditor");
+    ed.innerHTML = html;
+    ed.removeAttribute("hidden");
+
+    document.getElementById("pmConnector").onchange = function () {
+        let cname = this.value;
+        let cols = cname ? (getConnectorColumnNames(cname) || []) : [];
+        // Rebuild field selects, preserve parameter names and selected fields when possible
+        let body = document.getElementById("pmMapBody");
+        if (!body) {
+            return;
+        }
+        let preserved = [];
+        for (let i = 0; i < body.rows.length; i++) {
+            let row = body.rows[i];
+            let fieldInp = row.querySelector(".pm-field");
+            let paramInp = row.querySelector(".pm-param");
+            preserved.push({
+                fieldName: fieldInp ? fieldInp.value : "",
+                parameterName: paramInp ? paramInp.value : ""
+            });
+        }
+        body.innerHTML = "";
+        if (!preserved.length) {
+            preserved = [{fieldName: "", parameterName: ""}];
+        }
+        for (let r = 0; r < preserved.length; r++) {
+            body.insertAdjacentHTML("beforeend",
+                buildParamMapFieldRowHtml(r, preserved[r].fieldName,
+                    preserved[r].parameterName, cols));
+        }
+    };
+    document.getElementById("pmAddRow").onclick = function () {
+        let body = document.getElementById("pmMapBody");
+        let cname = (document.getElementById("pmConnector") || {}).value || "";
+        let cols = cname ? (getConnectorColumnNames(cname) || []) : [];
+        let r = body.rows.length;
+        body.insertAdjacentHTML("beforeend", buildParamMapFieldRowHtml(r, "", "", cols));
+    };
+    ed.onclick = function (e) {
+        let t = e.target;
+        if (t && t.getAttribute && t.getAttribute("data-pm-row-del") != null) {
+            let tr = t.closest("tr");
+            if (tr) {
+                tr.parentNode.removeChild(tr);
+            }
+        }
+    };
+    document.getElementById("pmEditorOk").onclick = function () {
+        commitPresentationParamMapEditor();
+    };
+    document.getElementById("pmEditorCancel").onclick = function () {
+        hidePresentationParamMapEditor();
+    };
+}
+
+function buildParamMapFieldRowHtml(r, fieldName, parameterName, fieldNames) {
+    fieldNames = fieldNames || [];
+    let html = "<tr>";
+    html += "<td>";
+    if (fieldNames.length) {
+        html += "<select class=\"pm-field\" data-r=\"" + r + "\">";
+        html += "<option value=\"\">- field -</option>";
+        let found = false;
+        for (let i = 0; i < fieldNames.length; i++) {
+            let fn = fieldNames[i];
+            let sel = (fn === fieldName) ? " selected" : "";
+            if (fn === fieldName) {
+                found = true;
+            }
+            html += "<option value=\"" + escapeHtmlAttribute(fn) + "\"" + sel + ">"
+                + escapeHtmlText(fn) + "</option>";
+        }
+        if (fieldName && !found) {
+            html += "<option value=\"" + escapeHtmlAttribute(fieldName)
+                + "\" selected>" + escapeHtmlText(fieldName) + " (custom)</option>";
+        }
+        html += "</select>";
+    } else {
+        html += "<input type=\"text\" class=\"pm-field\" data-r=\"" + r + "\" value=\""
+            + escapeHtmlAttribute(fieldName || "") + "\" placeholder=\"field name\">";
+    }
+    html += "</td>";
+    html += "<td><input type=\"text\" class=\"pm-param\" data-r=\"" + r + "\" value=\""
+        + escapeHtmlAttribute(parameterName || "") + "\" placeholder=\"PARAM_NAME\"></td>";
+    html += "<td><button type=\"button\" data-pm-row-del=\"" + r + "\">x</button></td>";
+    html += "</tr>";
+    return html;
+}
+
+function commitPresentationParamMapEditor() {
+    let idx = presentationParamMapEditIndex;
+    if (idx < 0 || !presentationPropertiesWorking) {
+        return;
+    }
+    let connectorName = (document.getElementById("pmConnector").value || "").trim();
+    if (!connectorName) {
+        alert("Connector is required for a parameter mapping.");
+        return;
+    }
+    let mappings = [];
+    let body = document.getElementById("pmMapBody");
+    if (body) {
+        for (let i = 0; i < body.rows.length; i++) {
+            let row = body.rows[i];
+            let fieldInp = row.querySelector(".pm-field");
+            let paramInp = row.querySelector(".pm-param");
+            let fn = fieldInp ? fieldInp.value.trim() : "";
+            let pn = paramInp ? paramInp.value.trim() : "";
+            if (fn || pn) {
+                if (!fn || !pn) {
+                    alert("Each mapping row needs both a field name and a parameter name.");
+                    return;
+                }
+                mappings.push({fieldName: fn, parameterName: pn});
+            }
+        }
+    }
+    if (!mappings.length) {
+        alert("Add at least one field to parameter mapping.");
+        return;
+    }
+    presentationPropertiesWorking.parameterMappings[idx] = {
+        connectorName: connectorName,
+        separator: document.getElementById("pmSeparator").value || "",
+        mappings: mappings
+    };
+    markPresentationPropertiesDirty();
+    hidePresentationParamMapEditor();
+    refreshPresentationParamMapsList();
+}
+
+// ── Save / close ──────────────────────────────────────────────────────────
+
+function setPresentationPropertiesStatus(msg, isError) {
+    let el = document.getElementById("presPropStatus");
+    if (!el) {
+        return;
+    }
+    if (!msg) {
+        el.setAttribute("hidden", "hidden");
+        el.textContent = "";
+        return;
+    }
+    el.removeAttribute("hidden");
+    el.textContent = msg;
+    el.style.color = isError ? "#a00" : "#245";
+}
+
+/**
+ * Validate interactions and parameter mappings before save.
+ * @returns {string|null} error message or null if ok
+ */
+function validatePresentationPropertiesWorking(w) {
+    if (!w.name || !w.name.trim()) {
+        return "Presentation name is required.";
+    }
+    let ixs = w.interactions || [];
+    for (let i = 0; i < ixs.length; i++) {
+        let loc = (ixs[i] && ixs[i].location) || {};
+        if (!loc.componentName || !String(loc.componentName).trim()) {
+            return "Interaction #" + (i + 1) + " needs a component name.";
+        }
+        let acts = (ixs[i] && ixs[i].actions) || [];
+        if (!acts.length || !acts[0].actionType) {
+            return "Interaction #" + (i + 1) + " needs an action.";
+        }
+    }
+    let pms = w.parameterMappings || [];
+    for (let j = 0; j < pms.length; j++) {
+        let pm = pms[j] || {};
+        if (!pm.connectorName || !String(pm.connectorName).trim()) {
+            return "Parameter mapping #" + (j + 1) + " needs a connector.";
+        }
+        let maps = pm.mappings || [];
+        if (!maps.length) {
+            return "Parameter mapping #" + (j + 1) + " needs at least one field mapping.";
+        }
+        for (let k = 0; k < maps.length; k++) {
+            if (!maps[k].fieldName || !maps[k].parameterName) {
+                return "Parameter mapping #" + (j + 1)
+                    + " row " + (k + 1) + " needs field and parameter names.";
+            }
+        }
+    }
+    return null;
+}
+
+function savePresentationProperties() {
+    if (!presentationPropertiesWorking) {
+        return;
+    }
+    // Commit open nested editors first
+    if (presentationInteractionEditIndex >= 0
+        && document.getElementById("presPropInteractionEditor")
+        && !document.getElementById("presPropInteractionEditor").hasAttribute("hidden")) {
+        // commit may alert and leave editor open on validation failure
+        let beforeIx = presentationInteractionEditIndex;
+        commitPresentationInteractionEditor();
+        if (presentationInteractionEditIndex === beforeIx
+            && document.getElementById("presPropInteractionEditor")
+            && !document.getElementById("presPropInteractionEditor").hasAttribute("hidden")) {
+            return;
+        }
+    }
+    if (presentationParamMapEditIndex >= 0
+        && document.getElementById("presPropParamMapEditor")
+        && !document.getElementById("presPropParamMapEditor").hasAttribute("hidden")) {
+        let beforePm = presentationParamMapEditIndex;
+        commitPresentationParamMapEditor();
+        if (presentationParamMapEditIndex === beforePm
+            && document.getElementById("presPropParamMapEditor")
+            && !document.getElementById("presPropParamMapEditor").hasAttribute("hidden")) {
+            return;
+        }
+    }
+    collectPresentationPropertiesBasics();
+    let w = presentationPropertiesWorking;
+    let validationError = validatePresentationPropertiesWorking(w);
+    if (validationError) {
+        setPresentationPropertiesStatus(validationError, true);
+        alert(validationError);
+        return;
+    }
+    let oldName = presentationPropertiesOldName;
+    let newName = w.name.trim();
+    w.name = newName;
+
+    setPresentationPropertiesStatus("Saving...", false);
+
+    function doPost() {
+        $.ajax({
+            url: API_BASE + "metadata/presentation/",
+            type: "POST",
+            data: JSON.stringify(w),
+            contentType: "application/json; charset=utf-8",
+            dataType: "text",
+            success: function (savedName) {
+                let finalName = savedName || newName;
+                // Rename: delete old if name changed
+                if (oldName && finalName && oldName !== finalName) {
+                    $.ajax({
+                        url: API_BASE + "metadata/presentation/" + encodeURIComponent(oldName),
+                        type: "DELETE",
+                        async: false
+                    });
+                }
+                // Header / footer via dedicated API
+                savePresentationHeaderFooterFromForm(finalName, function () {
+                    presentationName = finalName;
+                    presentationJson = w;
+                    presentationPropertiesOldName = finalName;
+                    clearPresentationPropertiesDirty();
+                    updatePresentationTitleBar(finalName);
+                    // If renamed, navigate to new editor URL so bookmarks stay valid
+                    if (oldName && finalName && oldName !== finalName) {
+                        window.open(
+                            API_BASE + "edit/presentation/" + encodeURIComponent(finalName) + "/",
+                            "_self"
+                        );
+                        return;
+                    }
+                    // Soft reload so interactions / themes / header-footer take effect
+                    if (typeof softReloadEditor === "function") {
+                        softReloadEditor();
+                    }
+                    if (typeof window.leanEdit !== "undefined"
+                        && typeof window.leanEdit.refreshHeaderFooter === "function") {
+                        window.leanEdit.refreshHeaderFooter();
+                    }
+                    setPresentationPropertiesStatus("Saved: " + finalName, false);
+                });
+            },
+            error: function (xhr) {
+                let msg = "Save failed: " + (xhr.responseText || xhr.status);
+                setPresentationPropertiesStatus(msg, true);
+                alert(msg);
+            }
+        });
+    }
+
+    // Optionally embed default theme if missing from presentation.themes
+    ensureDefaultThemeEmbedded(w, doPost);
+}
+
+function savePresentationHeaderFooterFromForm(name, done) {
+    let chkH = document.getElementById("presPropHeaderEnabled");
+    let chkF = document.getElementById("presPropFooterEnabled");
+    let hH = document.getElementById("presPropHeaderHeight");
+    let hF = document.getElementById("presPropFooterHeight");
+    if (!chkH && !chkF) {
+        if (done) {
+            done();
+        }
+        return;
+    }
+    let body = {
+        header: {
+            enabled: chkH ? !!chkH.checked : false,
+            height: hH ? (parseInt(hH.value, 10) || 50) : 50
+        },
+        footer: {
+            enabled: chkF ? !!chkF.checked : false,
+            height: hF ? (parseInt(hF.value, 10) || 25) : 25
+        }
+    };
+    $.ajax({
+        url: API_BASE + "edit/presentation/" + encodeURIComponent(name) + "/header-footer/",
+        type: "POST",
+        data: JSON.stringify(body),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: function () {
+            if (done) {
+                done();
+            }
+        },
+        error: function (xhr) {
+            console.warn("header-footer save failed:", xhr.responseText);
+            if (done) {
+                done();
+            }
+        }
+    });
+}
+
+function closePresentationProperties() {
+    if (presentationPropertiesWorking && isPresentationPropertiesDirty()) {
+        if (!confirm("Discard unsaved presentation property changes?")) {
+            return;
+        }
+    }
+    presentationPropertiesWorking = null;
+    presentationPropertiesBaseline = null;
+    presentationPropertiesDirty = false;
+    presentationInteractionEditIndex = -1;
+    presentationParamMapEditIndex = -1;
     setSidePanelOpen(false);
 }
 
+/** @deprecated */
+function savePresentation() {
+    savePresentationProperties();
+}
+
+function closePresentation() {
+    closePresentationProperties();
+}
+
 function addPresentationPage() {
-    // presentationJson['pages'].push({});
-    alert("Add new page");
+    alert("Add page: not yet implemented in properties panel");
 }
 // ---------------------------------------------------------------------------
 // Nested LeanComponent editors (Group.groupComponent, Composite.children, …)
@@ -3670,6 +6000,20 @@ function appendNestedFieldControl(container, prefix, field, pluginValues) {
         return;
     }
 
+    if (type === "LIST" && field.itemKind === "connector") {
+        let wrap = document.createElement("div");
+        wrap.innerHTML = '<fieldset class="nested-connector-list-fieldset" style="border:1px solid #aaa;margin:6px 0;padding:6px;">'
+            + "<legend>" + label + "</legend>"
+            + '<div id="' + domId + '_items" class="nested-connector-list" data-prefix="' + domId + '"></div>'
+            + '<button type="button" onclick="nestedConnectorListAdd(\'' + domId + '\')">Add step</button>'
+            + "</fieldset>";
+        container.appendChild(wrap);
+        let tmp = {};
+        tmp[field.fieldName] = val || [];
+        setNestedConnectorList(tmp, field.fieldName, domId);
+        return;
+    }
+
     if (type === "LIST") {
         // column / fact / string tables — Add/Delete in header, Up/Down on rows
         let tableId = domId;
@@ -3683,6 +6027,12 @@ function appendNestedFieldControl(container, prefix, field, pluginValues) {
             headers = "<tr><th>Type</th><th>Ascending</th><th></th><th></th><th></th></tr>";
         } else if (kind === "filter") {
             headers = "<tr><th>Field name</th><th>Filter value</th><th></th><th></th><th></th></tr>";
+        } else if (kind === "groupKey") {
+            headers = "<tr><th>Group column</th><th>Connector column</th><th></th><th></th><th></th></tr>";
+        } else if (kind === "jsonField") {
+            headers = "<tr><th>JSON tag</th><th>Name</th><th>Type</th><th>Format</th><th>Length</th><th>Precision</th><th></th><th></th><th></th></tr>";
+        } else if (kind === "connector" || kind === "bean") {
+            headers = "<tr><th>Plugin JSON (advanced)</th><th></th><th></th><th></th></tr>";
         } else {
             headers = "<tr><th>Column</th><th>Header</th><th>Width</th><th>H</th><th>V</th><th>Format</th><th></th><th></th><th></th></tr>";
         }
@@ -3710,7 +6060,13 @@ function appendNestedFieldControl(container, prefix, field, pluginValues) {
         } else if (kind === "sort") {
             setSortMethods(tmp, field.fieldName, tableId);
         } else if (kind === "filter") {
-            setFilterValues(tmp, field.fieldName, tableId);
+            setFilterValues(tmp, field.fieldName, tableId, colNames);
+        } else if (kind === "groupKey") {
+            setGroupKeyMappings(tmp, field.fieldName, tableId);
+        } else if (kind === "jsonField") {
+            setJsonFields(tmp, field.fieldName, tableId);
+        } else if (kind === "bean") {
+            setJsonObjectList(tmp, field.fieldName, tableId);
         } else {
             setColumns(tmp, field.fieldName, tableId, domId, colNames);
         }
@@ -3941,6 +6297,18 @@ function readNestedFieldValue(prefix, field, pluginValues) {
             getFacts(tmp, key, domId);
         } else if (kind === "string") {
             getStringList(tmp, key, domId);
+        } else if (kind === "sort") {
+            getSortMethods(tmp, key, domId);
+        } else if (kind === "filter") {
+            getFilterValues(tmp, key, domId);
+        } else if (kind === "groupKey") {
+            getGroupKeyMappings(tmp, key, domId);
+        } else if (kind === "jsonField") {
+            getJsonFields(tmp, key, domId);
+        } else if (kind === "connector") {
+            getNestedConnectorList(tmp, key, domId);
+        } else if (kind === "bean") {
+            getJsonObjectList(tmp, key, domId);
         } else {
             getColumns(tmp, key, domId);
         }
@@ -4090,6 +6458,387 @@ function nestedComponentListRemove(btn) {
 }
 
 // ---------------------------------------------------------------------------
+// Nested connector steps (ChainConnector.connectors, …)
+// Driven by window.connectorCatalog from generated form schemas.
+// Nested sourceConnectorName is hidden — chain wiring sets it at runtime.
+// ---------------------------------------------------------------------------
+
+let nestedConnectorSeq = 0;
+
+/** Plugin ids that are poor choices as nested chain steps (or recurse too easily). */
+const NESTED_CONNECTOR_EXCLUDE = {
+    "ChainConnector": true
+};
+
+function connectorCatalogById(pluginId) {
+    if (!window.connectorCatalog) {
+        return null;
+    }
+    for (let i = 0; i < window.connectorCatalog.length; i++) {
+        if (window.connectorCatalog[i].pluginId === pluginId) {
+            return window.connectorCatalog[i];
+        }
+    }
+    return null;
+}
+
+function connectorCatalogPluginIds() {
+    if (!window.connectorCatalog) {
+        return [];
+    }
+    let ids = [];
+    for (let i = 0; i < window.connectorCatalog.length; i++) {
+        let id = window.connectorCatalog[i].pluginId;
+        if (id && !NESTED_CONNECTOR_EXCLUDE[id]) {
+            ids.push(id);
+        }
+    }
+    return ids;
+}
+
+function initNestedConnectorList(prefix) {
+    let items = document.getElementById(prefix + "_items");
+    if (items === null) {
+        return;
+    }
+    items.innerHTML = "";
+}
+
+/**
+ * Normalize hop/form step JSON to a flat plugin payload with pluginId.
+ * Accepts either { pluginId, …fields } or { SelectionConnector: { … } }.
+ */
+function unwrapConnectorStep(obj) {
+    if (!obj || typeof obj !== "object") {
+        return {pluginId: "PassthroughConnector"};
+    }
+    if (obj.pluginId) {
+        return obj;
+    }
+    let keys = Object.keys(obj);
+    if (keys.length === 1 && obj[keys[0]] && typeof obj[keys[0]] === "object") {
+        let inner = Object.assign({}, obj[keys[0]]);
+        if (!inner.pluginId) {
+            inner.pluginId = keys[0];
+        }
+        return inner;
+    }
+    return obj;
+}
+
+function setNestedConnectorList(parentObj, fieldName, prefix) {
+    let items = document.getElementById(prefix + "_items");
+    if (items === null) {
+        return;
+    }
+    items.innerHTML = "";
+    let list = parentObj[fieldName];
+    if (!list || !Array.isArray(list)) {
+        return;
+    }
+    for (let i = 0; i < list.length; i++) {
+        nestedConnectorListAppend(prefix, unwrapConnectorStep(list[i]));
+    }
+}
+
+function getNestedConnectorList(parentObj, fieldName, prefix) {
+    let items = document.getElementById(prefix + "_items");
+    let result = [];
+    if (items) {
+        let shells = items.querySelectorAll(":scope > .nested-connector-list-item");
+        for (let i = 0; i < shells.length; i++) {
+            let p = shells[i].getAttribute("data-prefix");
+            let step = readNestedConnectorFromPanel(p);
+            if (step) {
+                result.push(step);
+            }
+        }
+    }
+    parentObj[fieldName] = result;
+}
+
+function nestedConnectorListAdd(prefix) {
+    nestedConnectorListAppend(prefix, null);
+}
+
+function nestedConnectorListAppend(prefix, stepValue) {
+    let items = document.getElementById(prefix + "_items");
+    if (items === null) {
+        return;
+    }
+    let childPrefix = prefix + "_s" + (nestedConnectorSeq++);
+    let wrap = document.createElement("div");
+    wrap.className = "nested-connector-list-item";
+    wrap.setAttribute("data-prefix", childPrefix);
+    wrap.innerHTML = buildNestedConnectorShellHtml(childPrefix);
+    items.appendChild(wrap);
+    wireNestedConnectorShell(childPrefix);
+    if (stepValue) {
+        loadNestedConnectorIntoPanel(childPrefix, stepValue);
+    } else {
+        let typeSelect = document.getElementById(childPrefix + "_pluginId");
+        if (typeSelect) {
+            let preferred = ["SelectionConnector", "SimpleFilterConnector", "SortConnector",
+                "DistinctConnector", "PassthroughConnector"];
+            for (let p = 0; p < preferred.length; p++) {
+                if (connectorCatalogById(preferred[p])) {
+                    typeSelect.value = preferred[p];
+                    break;
+                }
+            }
+            if (!typeSelect.value && typeSelect.options.length) {
+                typeSelect.selectedIndex = 0;
+            }
+            rebuildNestedConnectorPluginFields(childPrefix, typeSelect.value, null);
+            updateNestedConnectorStepSummary(childPrefix);
+        }
+    }
+}
+
+function nestedConnectorListRemove(btn) {
+    let item = btn.closest(".nested-connector-list-item");
+    if (item) {
+        item.remove();
+    }
+}
+
+function nestedConnectorListMoveUp(btn) {
+    let item = btn.closest(".nested-connector-list-item");
+    if (!item || !item.parentNode) {
+        return;
+    }
+    let prev = item.previousElementSibling;
+    if (prev && prev.classList.contains("nested-connector-list-item")) {
+        item.parentNode.insertBefore(item, prev);
+    }
+}
+
+function nestedConnectorListMoveDown(btn) {
+    let item = btn.closest(".nested-connector-list-item");
+    if (!item || !item.parentNode) {
+        return;
+    }
+    let next = item.nextElementSibling;
+    if (next && next.classList.contains("nested-connector-list-item")) {
+        item.parentNode.insertBefore(next, item);
+    }
+}
+
+function buildNestedConnectorShellHtml(prefix) {
+    let options = "";
+    let ids = connectorCatalogPluginIds();
+    for (let i = 0; i < ids.length; i++) {
+        let info = connectorCatalogById(ids[i]);
+        let label = info && info.name ? info.name : ids[i];
+        options += '<option value="' + ids[i] + '">' + label + " (" + ids[i] + ")</option>";
+    }
+    if (!options) {
+        // Fallback when catalog missing
+        ["SelectionConnector", "SortConnector", "SimpleFilterConnector", "DistinctConnector",
+            "PassthroughConnector", "SqlConnector", "SampleDataConnector", "LeanRestConnector",
+            "LeanListConnector"].forEach(function (id) {
+            options += '<option value="' + id + '">' + id + "</option>";
+        });
+    }
+    let iconSrc = API_BASE + "static/images/connector.svg";
+    return ""
+        + '<div class="nested-connector-shell" data-prefix="' + prefix + '">'
+        + '  <div class="nested-connector-step-header">'
+        + '    <img class="nested-connector-step-icon" id="' + prefix + '_icon" src="' + iconSrc
+        + '" width="18" height="18" alt="">'
+        + '    <span class="nested-connector-step-summary" id="' + prefix + '_summary">Step</span>'
+        + '    <label class="nested-connector-type-label">Type </label>'
+        + '    <select id="' + prefix + '_pluginId" class="nested-connector-type-select">' + options + "</select>"
+        + '    <span class="nested-connector-step-actions">'
+        + '      <button type="button" class="list-row-btn" title="Move up" '
+        + 'onclick="nestedConnectorListMoveUp(this)">'
+        + '<img src="' + API_BASE + 'static/images/arrow-up.svg" alt="Up" width="14" height="14"></button>'
+        + '      <button type="button" class="list-row-btn" title="Move down" '
+        + 'onclick="nestedConnectorListMoveDown(this)">'
+        + '<img src="' + API_BASE + 'static/images/arrow-down.svg" alt="Down" width="14" height="14"></button>'
+        + '      <button type="button" class="list-row-btn" title="Remove step" '
+        + 'onclick="nestedConnectorListRemove(this)">'
+        + '<img src="' + API_BASE + 'static/images/delete.svg" alt="Remove" width="14" height="14"></button>'
+        + '      <button type="button" class="nested-connector-toggle" id="' + prefix
+        + '_toggle" title="Expand or collapse settings">Settings</button>'
+        + "    </span>"
+        + "  </div>"
+        + '  <div id="' + prefix + '_pluginFields" class="nested-connector-plugin-fields" style="display:none;"></div>'
+        + "</div>";
+}
+
+function wireNestedConnectorShell(prefix) {
+    let typeSelect = document.getElementById(prefix + "_pluginId");
+    if (typeSelect) {
+        typeSelect.onchange = function () {
+            rebuildNestedConnectorPluginFields(prefix, typeSelect.value, null);
+            updateNestedConnectorStepSummary(prefix);
+        };
+    }
+    let toggle = document.getElementById(prefix + "_toggle");
+    let fields = document.getElementById(prefix + "_pluginFields");
+    if (toggle && fields) {
+        toggle.onclick = function () {
+            if (fields.style.display === "none" || !fields.style.display) {
+                fields.style.display = "block";
+                toggle.textContent = "Hide";
+            } else {
+                fields.style.display = "none";
+                toggle.textContent = "Settings";
+            }
+        };
+    }
+}
+
+function updateNestedConnectorStepSummary(prefix) {
+    let typeSelect = document.getElementById(prefix + "_pluginId");
+    let summary = document.getElementById(prefix + "_summary");
+    let icon = document.getElementById(prefix + "_icon");
+    if (!typeSelect) {
+        return;
+    }
+    let pluginId = typeSelect.value;
+    let info = connectorCatalogById(pluginId);
+    let label = info && info.name ? info.name : pluginId;
+    if (summary) {
+        summary.textContent = label;
+        summary.title = info && info.description
+            ? (label + " - " + info.description)
+            : label;
+    }
+    if (icon && typeof connectorPluginIconUrl === "function") {
+        icon.src = connectorPluginIconUrl(pluginId);
+        icon.alt = pluginId || "connector";
+        if (info && info.description) {
+            icon.title = label + "\n" + info.description;
+        } else {
+            icon.title = label;
+        }
+    }
+}
+
+function rebuildNestedConnectorPluginFields(prefix, pluginId, values) {
+    let container = document.getElementById(prefix + "_pluginFields");
+    if (container === null) {
+        return;
+    }
+    container.innerHTML = "";
+    let info = connectorCatalogById(pluginId);
+    if (info === null || !info.sections) {
+        container.innerHTML = "<em class=\"editor-hint\">No form schema for "
+            + escapeHtmlText(pluginId || "?")
+            + ". Source wiring is automatic for chain steps.</em>";
+        return;
+    }
+    let pluginValues = values || {};
+    let anyField = false;
+    for (let s = 0; s < info.sections.length; s++) {
+        let section = info.sections[s];
+        let fields = section.fields || [];
+        // Filter out sourceConnectorName — chain sets this at runtime
+        let visible = [];
+        for (let f = 0; f < fields.length; f++) {
+            if (fields[f].fieldName === "sourceConnectorName" || fields[f].id === "sourceConnectorName") {
+                continue;
+            }
+            // Nested chain lists are stripped from catalog at depth; still skip
+            if (fields[f].type === "LIST" && fields[f].itemKind === "connector") {
+                continue;
+            }
+            visible.push(fields[f]);
+        }
+        if (!visible.length) {
+            continue;
+        }
+        anyField = true;
+        let title = section.title || section.id || "Options";
+        let open = section.openByDefault ? "block" : "block";
+        let secId = prefix + "_sec_" + (section.id || s);
+        container.insertAdjacentHTML("beforeend",
+            '<button type="button" class="collapsible nested-sec-toggle">' + escapeHtmlText(title) + "</button>"
+            + '<div class="content" id="' + secId + '" style="display: ' + open + ';"></div>');
+        let secDiv = document.getElementById(secId);
+        for (let f = 0; f < visible.length; f++) {
+            appendNestedFieldControl(secDiv, prefix, visible[f], pluginValues);
+        }
+        let btn = secDiv.previousElementSibling;
+        if (btn) {
+            btn.onclick = function () {
+                let c = this.nextElementSibling;
+                c.style.display = c.style.display === "block" ? "none" : "block";
+            };
+        }
+    }
+    if (!anyField) {
+        container.innerHTML = "<em class=\"editor-hint\">This step has no extra settings "
+            + "(uses the chain source automatically).</em>";
+    }
+}
+
+function loadNestedConnectorIntoPanel(prefix, step) {
+    step = unwrapConnectorStep(step);
+    let pluginId = step.pluginId;
+    let typeSelect = document.getElementById(prefix + "_pluginId");
+    if (typeSelect && pluginId) {
+        // Ensure option exists
+        let found = false;
+        for (let i = 0; i < typeSelect.options.length; i++) {
+            if (typeSelect.options[i].value === pluginId) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            let opt = document.createElement("option");
+            opt.value = pluginId;
+            opt.textContent = pluginId;
+            typeSelect.appendChild(opt);
+        }
+        typeSelect.value = pluginId;
+        rebuildNestedConnectorPluginFields(prefix, pluginId, step);
+    }
+    updateNestedConnectorStepSummary(prefix);
+}
+
+function readNestedConnectorFromPanel(prefix) {
+    let typeSelect = document.getElementById(prefix + "_pluginId");
+    if (!typeSelect) {
+        return null;
+    }
+    let pluginId = typeSelect.value;
+    if (!pluginId) {
+        return null;
+    }
+    let info = connectorCatalogById(pluginId);
+    let pluginValues = {};
+    if (info && info.sections) {
+        for (let s = 0; s < info.sections.length; s++) {
+            let fields = info.sections[s].fields || [];
+            for (let f = 0; f < fields.length; f++) {
+                let field = fields[f];
+                if (field.fieldName === "sourceConnectorName" || field.id === "sourceConnectorName") {
+                    continue;
+                }
+                if (field.type === "LIST" && field.itemKind === "connector") {
+                    continue;
+                }
+                readNestedFieldValue(prefix, field, pluginValues);
+            }
+        }
+    }
+    // Runtime wiring: leave source unset so chain context assigns it
+    pluginValues["pluginId"] = pluginId;
+    pluginValues["sourceConnectorName"] = null;
+
+    // Hop JsonMetadataParser requires @HopMetadataObject list items as:
+    //   { "SelectionConnector": { "pluginId": "SelectionConnector", ...fields } }
+    // Flat { pluginId, ... } makes createObject("pluginId") → null → NPE on save/preview.
+    let wrapped = {};
+    wrapped[pluginId] = pluginValues;
+    return wrapped;
+}
+
+// ---------------------------------------------------------------------------
 // Sort methods, filter values, and JSON object lists (connectors)
 // ---------------------------------------------------------------------------
 
@@ -4147,7 +6896,7 @@ function getSortMethods(json, fieldId, tableId) {
     json[fieldId] = values;
 }
 
-function setFilterValues(json, fieldId, tableId) {
+function setFilterValues(json, fieldId, tableId, connectorColumnNames) {
     let values = json[fieldId];
     if (!values) {
         return;
@@ -4159,19 +6908,102 @@ function setFilterValues(json, fieldId, tableId) {
     if (table.getAttribute("data-list-kind") === null) {
         table.setAttribute("data-list-kind", "filter");
     }
+    let colNames = connectorColumnNames;
+    if (!colNames || !colNames.length) {
+        // Prefer live source connector select when present (connector editors)
+        colNames = (typeof listFieldConnectorColumnNames === "function")
+            ? listFieldConnectorColumnNames(table)
+            : [];
+    }
     for (let i = 0; i < values.length; i++) {
-        createFilterValueRow(table, values[i], i);
+        createFilterValueRow(table, values[i], i, colNames);
     }
 }
 
-function createFilterValueRow(table, filter, i) {
+function createFilterValueRow(table, filter, i, connectorColumnNames) {
     let row = table.insertRow(i + 1);
     row.id = createTableRowId(table.id, rowIdNumber++);
     let fieldName = filter && filter.fieldName ? filter.fieldName : "";
     let filterValue = filter && filter.filterValue ? filter.filterValue : "";
-    row.insertCell(0).innerHTML = createText("filterField-" + i, fieldName);
+    let colNames = connectorColumnNames;
+    if (!colNames) {
+        colNames = (typeof listFieldConnectorColumnNames === "function")
+            ? listFieldConnectorColumnNames(table)
+            : [];
+    }
+    // Column select from source connector (preserve stored name if offline)
+    row.insertCell(0).innerHTML = createSelection(
+        "filterField-" + i, fieldName, colNames || [], { preserveMissing: true });
     row.insertCell(1).innerHTML = createText("filterValue-" + i, filterValue);
     appendListReorderCells(row, table, 2);
+}
+
+/** Hop value type names for REST JsonField mapping (matches LeanRestConnector.JsonField). */
+const JSON_FIELD_TYPES = [
+    "String",
+    "Integer",
+    "Number",
+    "BigNumber",
+    "Boolean",
+    "Date",
+    "Timestamp",
+    "Binary",
+    "Internet Address"
+];
+
+function setJsonFields(json, fieldId, tableId) {
+    let values = json[fieldId];
+    if (!values) {
+        return;
+    }
+    let table = document.getElementById(tableId);
+    if (!table) {
+        return;
+    }
+    if (table.getAttribute("data-list-kind") === null) {
+        table.setAttribute("data-list-kind", "jsonField");
+    }
+    for (let i = 0; i < values.length; i++) {
+        createJsonFieldRow(table, values[i], i);
+    }
+}
+
+function createJsonFieldRow(table, field, i) {
+    let row = table.insertRow(i + 1);
+    row.id = createTableRowId(table.id, rowIdNumber++);
+    let f = field || {};
+    let type = f.type || "String";
+    row.insertCell(0).innerHTML = createText("jsonTag-" + i, f.tag || "");
+    row.insertCell(1).innerHTML = createText("jsonName-" + i, f.name || "");
+    row.insertCell(2).innerHTML = createSelection(
+        "jsonType-" + i, type, JSON_FIELD_TYPES, { defaultEmptyToFirst: true, preserveMissing: true });
+    row.insertCell(3).innerHTML = createText("jsonFormat-" + i, f.formatMask || "", "width: 5em");
+    row.insertCell(4).innerHTML = createText("jsonLength-" + i, f.length || "", "width: 4em");
+    row.insertCell(5).innerHTML = createText("jsonPrecision-" + i, f.precision || "", "width: 4em");
+    appendListReorderCells(row, table, 6);
+}
+
+function getJsonFields(json, fieldId, tableId) {
+    let values = [];
+    let table = document.getElementById(tableId);
+    if (!table) {
+        json[fieldId] = values;
+        return;
+    }
+    for (let i = 1; i < table.rows.length; i++) {
+        let row = table.rows[i];
+        values.push({
+            "tag": cellControlValue(row.cells[0]),
+            "name": cellControlValue(row.cells[1]),
+            "type": cellControlValue(row.cells[2]),
+            "formatMask": cellControlValue(row.cells[3]),
+            "length": cellControlValue(row.cells[4]),
+            "precision": cellControlValue(row.cells[5]),
+            "decimal": "",
+            "grouping": ""
+        });
+    }
+    json[fieldId] = values;
 }
 
 function getFilterValues(json, fieldId, tableId) {
@@ -4186,6 +7018,50 @@ function getFilterValues(json, fieldId, tableId) {
         values.push({
             "fieldName": cellControlValue(row.cells[0]),
             "filterValue": cellControlValue(row.cells[1])
+        });
+    }
+    json[fieldId] = values;
+}
+
+/** Group component: group column → nested connector column key mappings. */
+function setGroupKeyMappings(json, fieldId, tableId) {
+    let values = json[fieldId];
+    if (!values) {
+        return;
+    }
+    let table = document.getElementById(tableId);
+    if (!table) {
+        return;
+    }
+    if (table.getAttribute("data-list-kind") === null) {
+        table.setAttribute("data-list-kind", "groupKey");
+    }
+    for (let i = 0; i < values.length; i++) {
+        createGroupKeyMappingRow(table, values[i], i);
+    }
+}
+
+function createGroupKeyMappingRow(table, mapping, i) {
+    let row = table.insertRow(i + 1);
+    row.id = createTableRowId(table.id, rowIdNumber++);
+    let m = mapping || {};
+    row.insertCell(0).innerHTML = createText("groupKeyGroup-" + i, m.groupColumn || "");
+    row.insertCell(1).innerHTML = createText("groupKeyConn-" + i, m.connectorColumn || "");
+    appendListReorderCells(row, table, 2);
+}
+
+function getGroupKeyMappings(json, fieldId, tableId) {
+    let values = [];
+    let table = document.getElementById(tableId);
+    if (!table) {
+        json[fieldId] = values;
+        return;
+    }
+    for (let i = 1; i < table.rows.length; i++) {
+        let row = table.rows[i];
+        values.push({
+            "groupColumn": cellControlValue(row.cells[0]),
+            "connectorColumn": cellControlValue(row.cells[1])
         });
     }
     json[fieldId] = values;

@@ -636,15 +636,16 @@
         "mouseDoubleClick": false
       },
       "location": {
-        "itemType": "ComponentItem",
-        "itemCategory": "ChartSeriesLabel",
-        "componentName": "LineChart",
-        "dimensionColumns": []
+        "itemType": "Component",
+        "itemCategory": "",
+        "componentName": "TrendChartDetailed",
+        "dimensionColumns": [],
+        "componentPluginId": "LeanLineChartComponent"
       },
       "actions": [
         {
           "actionType": "OPEN_PRESENTATION",
-          "objectName": "Other presentation"
+          "objectName": "products"
         }
       ]
     }

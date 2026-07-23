@@ -1,10 +1,15 @@
 <html xmlns="http://www.w3.org/1999/html" lang="en">
 <head>
+    <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="/lean/api/static/lean-rest.css">
-    <script src="/lean/api/static/jquery.min.js"></script>
+    <script src="/lean/api/static/jquery.min.js" charset="utf-8"></script>
     <title>%PRESENTATION_NAME% (edit) page %PAGE_NUMBER%/%PAGE_COUNT%</title>
 </head>
 <body class="lean-mode-edit">
+<div id="presentationTitleBar" class="presentation-title-bar" aria-label="Presentation">
+    <a href="#" id="presentationTitleLink" class="presentation-title-link"
+       title="Edit presentation properties">%PRESENTATION_NAME%</a>
+</div>
 <div class="editor-layout">
     <aside class="editor-left-rail" id="editorLeftRail">
         <section class="editor-palette" id="editorPalette">
@@ -69,7 +74,7 @@
     var renderPageCount = '%PAGE_COUNT%';
     var parameterValues = JSON.parse('%PARAMETER_VALUES%');
 </script>
-<script src="/lean/api/static/lean-rest.js"></script>
-<script src="/lean/api/static/lean-edit.js"></script>
+<script src="/lean/api/static/lean-rest.js" charset="utf-8"></script>
+<script src="/lean/api/static/lean-edit.js" charset="utf-8"></script>
 </body>
 </html>

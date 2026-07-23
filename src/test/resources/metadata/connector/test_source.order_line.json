@@ -1,0 +1,11 @@
+{
+  "shared": false,
+  "connector": {
+    "SqlConnector": {
+      "pluginId": "SqlConnector",
+      "databaseConnectionName": "Postgres",
+      "sql": "SELECT * FROM order_line"
+    }
+  },
+  "name": "test_source.order_line"
+}

@@ -390,6 +390,56 @@ public class MetadataResource extends BaseResource {
   }
 
   /**
+   * List shared connector metadata with plugin type for the admin table (icons, tooltips).
+   *
+   * <p>Returns {@code [{ "name", "pluginId", "shared" }, ...]} sorted by name.
+   */
+  @GET
+  @Path("/connectors/summary/")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response listConnectorSummaries() {
+    try {
+      IHopMetadataProvider provider = leanRest.getMetadataProvider();
+      IHopMetadataSerializer<LeanConnector> serializer =
+          provider.getSerializer(LeanConnector.class);
+      List<Map<String, Object>> rows = new ArrayList<>();
+      for (String name : serializer.listObjectNames()) {
+        if (name == null || name.isBlank()) {
+          continue;
+        }
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("name", name);
+        String pluginId = null;
+        boolean shared = false;
+        try {
+          LeanConnector connector = serializer.load(name);
+          if (connector != null) {
+            shared = connector.isShared();
+            if (connector.getConnector() != null) {
+              pluginId = connector.getConnector().getPluginId();
+            }
+          }
+        } catch (Exception loadEx) {
+          leanRest
+              .getLog()
+              .logBasic(
+                  "connectors/summary: could not load '" + name + "': " + loadEx.getMessage());
+        }
+        row.put("pluginId", pluginId);
+        row.put("shared", shared);
+        rows.add(row);
+      }
+      rows.sort(
+          Comparator.comparing(
+              r -> String.valueOf(r.get("name")), String.CASE_INSENSITIVE_ORDER));
+      String json = new ObjectMapper().writeValueAsString(rows);
+      return Response.ok(json).type(MediaType.APPLICATION_JSON_TYPE).encoding("UTF-8").build();
+    } catch (Exception e) {
+      return getServerError("Error listing connector summaries", e);
+    }
+  }
+
+  /**
    * Load a connector as Hop metadata JSON (plugin id as nested map key), suitable for the generated
    * form editor.
    */

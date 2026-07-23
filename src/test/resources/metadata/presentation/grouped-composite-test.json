@@ -230,9 +230,8 @@
                       {
                         "layout": {
                           "top": {
-                            "offset": 10,
+                            "offset": 65,
                             "percentage": 0,
-                            "componentName": "Label1",
                             "alignment": "BOTTOM"
                           },
                           "left": {
@@ -250,8 +249,7 @@
                             "showingVerticalSubtotals": false,
                             "facts": [
                               {
-                                "horizontalAggregationHeader": "Total Sum",
-                                "headerHorizontalAlignment": "CENTER",
+                                "headerHorizontalAlignment": "LEFT",
                                 "headerValue": "Sum",
                                 "formatMask": "0.000",
                                 "verticalAggregation": false,
@@ -259,13 +257,12 @@
                                 "horizontalAggregation": true,
                                 "width": 0,
                                 "aggregationMethod": "SUM",
-                                "headerVerticalAlignment": "MIDDLE",
+                                "headerVerticalAlignment": "TOP",
                                 "verticalAlignment": "MIDDLE",
                                 "columnName": "random"
                               },
                               {
-                                "horizontalAggregationHeader": "Total Count",
-                                "headerHorizontalAlignment": "CENTER",
+                                "headerHorizontalAlignment": "LEFT",
                                 "headerValue": "Count",
                                 "formatMask": "0",
                                 "verticalAggregation": false,
@@ -273,7 +270,7 @@
                                 "horizontalAggregation": true,
                                 "width": 0,
                                 "aggregationMethod": "COUNT",
-                                "headerVerticalAlignment": "MIDDLE",
+                                "headerVerticalAlignment": "TOP",
                                 "verticalAlignment": "MIDDLE",
                                 "columnName": "name"
                               }
@@ -321,7 +318,13 @@
                   }
                 },
                 "name": "Composite1"
-              }
+              },
+              "keyMappings": [
+                {
+                  "connectorColumn": "country",
+                  "groupColumn": "country"
+                }
+              ]
             }
           },
           "name": "Group"

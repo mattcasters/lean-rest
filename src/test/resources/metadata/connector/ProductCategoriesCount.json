@@ -1,0 +1,11 @@
+{
+  "shared": false,
+  "connector": {
+    "SqlConnector": {
+      "pluginId": "SqlConnector",
+      "databaseConnectionName": "Postgres",
+      "sql": "SELECT   category, count(*)\nFROM     product\nGROUP BY category\nORDER BY category\n"
+    }
+  },
+  "name": "ProductCategoriesCount"
+}

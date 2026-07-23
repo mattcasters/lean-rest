@@ -86,6 +86,78 @@ grep -q '<svg' /tmp/lean-page.svg && echo PASS || echo FAIL
 
 - **`SteelWheels Customer Table`** (and similar SQL presentations) return **500** if the H2 file/DB referenced by metadata is empty or missing tables (`CUSTOMERS not found`). That is **test data setup**, not a platform regression. Populate SteelWheels H2 or point `lean-database-connection` metadata at a loaded database before expecting those to render.
 
+### Connector schema / studio (baseline)
+
+Design contract for the future **connector data studio** (input samples / settings / output samples, Apply = preview): see **[connector-studio.md](./connector-studio.md)** and lean-engine `docs/connectors.md` (*Connector studio preview*).
+
+Exists today (no sample rows yet):
+
+```bash
+# Output row layout for a saved connector (schema only)
+curl -sS -X POST -H 'Content-Type: application/json' \
+  -d '{"connectorName":"Sample Data"}' \
+  "$BASE/render/connector/describe/"
+
+# Generated form HTML for a plugin type
+curl -sS -o /tmp/lean-sql-form.html -w "%{http_code}\n" \
+  "$BASE/edit/connector/SqlConnector/"
+
+# Plugin catalog
+curl -sS "$BASE/plugins/connectors"
+```
+
+| Check | Expected (today) |
+|-------|------------------|
+| `POST .../render/connector/describe/` (`Sample Data`) | **200**, JSON array of value meta (`name`, `type`, …) |
+| `GET .../edit/connector/SqlConnector/` | **200**, HTML with Apply/Close and `connectorSaveScript` |
+| `POST .../edit/connector/preview/` | **200**, `{ ok, maxRows, input?, output, error }` with sample rows |
+| `GET .../metadata/connectors/summary/` | **200**, `[{ name, pluginId, shared }, …]` for icon table |
+
+```bash
+# Connector studio preview (inline JSON; does not save)
+curl -sS -X POST -H 'Content-Type: application/json' \
+  -d '{"maxRows":5,"leanConnectorJson":"{\"name\":\"preview-sample\",\"shared\":false,\"connector\":{\"SampleDataConnector\":{\"pluginId\":\"SampleDataConnector\",\"rowCount\":10}}}"}' \
+  "$BASE/edit/connector/preview/" | head -c 400; echo
+
+# Connector admin summaries (icons / types)
+curl -sS "$BASE/metadata/connectors/summary/" | head -c 300; echo
+```
+
+**UI polish checks (manual):** edit mode → connectors → open a **Sort** / **Select** / **Chain** with a source → changing **Source connector** should immediately show the **Input** pane with sample rows; **Apply** refreshes output; sample-size dropdown limits rows.
+
+### Presentation properties (interactions + parameter mappings)
+
+Chrome: in **edit** and **view**, the presentation name appears **top-right** of the toolbar strip. In edit mode it is a link (underline on hover); click opens the properties side panel.
+
+| Check | Expected |
+|-------|----------|
+| Title bar | Name visible top-right; edit: clickable; view: plain text |
+| Properties load | `GET .../metadata/presentation/{name}` fills name, description, default theme, themes, interactions, parameter mappings |
+| Header/footer fields | Loaded/saved via `.../edit/presentation/{name}/header-footer/` |
+| Interactions list | Cards with summary like demo `list-executions` (click cell → OPEN_PRESENTATION + param) |
+| Parameter mappings | Cards for connector + field→parameter rows (demo: `execution-details`) |
+| Save | `POST .../metadata/presentation/` then soft re-render; rename deletes old name and navigates |
+
+Manual UI path:
+
+1. Open `list-executions` in **edit** mode.
+2. Click the presentation name (top-right) → properties panel.
+3. Confirm two interactions (executionId → `execution-details` / EXECUTION_ID; name → `execution-trend` / OBJECT_NAME).
+4. Open `execution-details` → confirm parameter mapping for `hop-execution-details`.
+5. Add or edit a mapping / interaction → **Save** → soft reload; verify in **view** that drill-down still works.
+6. **Table drill-down** preset: creates a Cell/ComponentItem interaction pre-filled with the first table component; pick dimension column checkboxes + target presentation.
+7. Parameter mapping field names: combo from connector `describe` (falls back to text).
+8. Themes: **Add** / **Remove** embedded themes; Close with unsaved edits asks to discard.
+
+```bash
+# Load presentation metadata (includes interactions + parameterMappings)
+curl -sS "$BASE/metadata/presentation/list-executions" | head -c 400; echo
+curl -sS "$BASE/metadata/presentation/execution-details" | head -c 400; echo
+
+# List presentation names for interaction target pickers
+curl -sS "$BASE/metadata/list/presentation/"
+```
+
 ## Stop the server
 
 Ctrl+C in the Jetty terminal, or kill the `mvn jetty:run` process.

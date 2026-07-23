@@ -1,11 +1,15 @@
 <html xmlns="http://www.w3.org/1999/html" lang="en">
 <head>
+    <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="/lean/api/static/lean-rest.css">
-    <script src="/lean/api/static/jquery.min.js"></script>
+    <script src="/lean/api/static/jquery.min.js" charset="utf-8"></script>
     <title>%PRESENTATION_NAME% (view) page %PAGE_NUMBER%/%PAGE_COUNT%</title>
 </head>
 <body class="lean-mode-view">
 <!-- View mode: read-only canvas. No structural editing. -->
+<div id="presentationTitleBar" class="presentation-title-bar presentation-title-bar-view" aria-label="Presentation">
+    <span id="presentationTitleLink" class="presentation-title-text">%PRESENTATION_NAME%</span>
+</div>
 <canvas
         id="svgCanvas"
         width="100%"
@@ -22,7 +26,7 @@
     var renderPageCount = '%PAGE_COUNT%';
     var parameterValues = JSON.parse('%PARAMETER_VALUES%');
 </script>
-<script src="/lean/api/static/lean-rest.js"></script>
-<script src="/lean/api/static/lean-view.js"></script>
+<script src="/lean/api/static/lean-rest.js" charset="utf-8"></script>
+<script src="/lean/api/static/lean-view.js" charset="utf-8"></script>
 </body>
 </html>

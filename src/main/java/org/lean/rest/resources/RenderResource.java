@@ -162,27 +162,54 @@ public class RenderResource extends BaseResource {
     try {
       IRendering rendering = lookupRendering(request.getRenderId());
       LeanRenderPage page = lookupRenderPage(rendering, request.getPageNumber());
-      DrawnItem drawnItem = page.lookupDrawnItem(request.getX(), request.getY());
       InteractionLookupResult result = new InteractionLookupResult();
-      if (drawnItem != null) {
-        // See if we have an action to match this...
-        //
-        LeanPresentation presentation = rendering.getPresentation();
-        LeanInteraction interaction = presentation.findInteraction(null, drawnItem);
-        if (interaction != null) {
-          // We found an interaction for this drawn item...
-          //
-          result.setFound(true);
-          result.setDrawnItem(drawnItem);
-          result.setActions(interaction.getActions());
-          result.setMethod(interaction.getMethod());
+      LeanPresentation presentation = rendering.getPresentation();
+
+      // Top-most hit first, then other items under the cursor (stacked ComponentItems)
+      List<DrawnItem> hits = page.lookupDrawnItems(request.getX(), request.getY());
+      // Also try each component envelope under the point so whole-component interactions
+      // match even when only a child item was registered as the top hit.
+      java.util.LinkedHashSet<String> componentNames = new java.util.LinkedHashSet<>();
+      for (DrawnItem hit : hits) {
+        if (hit.getComponentName() != null) {
+          componentNames.add(hit.getComponentName());
         }
+      }
+      List<DrawnItem> candidates = new ArrayList<>(hits);
+      for (String name : componentNames) {
+        DrawnItem envelope = page.lookupComponentDrawnItem(name);
+        if (envelope != null && !candidates.contains(envelope)) {
+          candidates.add(envelope);
+        }
+      }
+
+      for (DrawnItem drawnItem : candidates) {
+        LeanInteraction interaction = presentation.findInteraction(null, drawnItem);
+        if (interaction == null) {
+          continue;
+        }
+        // Outline: for whole-component interactions use the component envelope geometry
+        DrawnItem outlineItem = drawnItem;
+        if (interaction.getLocation() != null
+            && DrawnItem.DrawnItemType.Component.name()
+                .equals(interaction.getLocation().getItemType())
+            && drawnItem.getComponentName() != null) {
+          DrawnItem envelope =
+              page.lookupComponentDrawnItem(drawnItem.getComponentName());
+          if (envelope != null) {
+            outlineItem = envelope;
+          }
+        }
+        result.setFound(true);
+        result.setDrawnItem(outlineItem);
+        result.setActions(interaction.getActions());
+        result.setMethod(interaction.getMethod());
+        break;
       }
 
       return Response.ok()
           .entity(result.toJsonString())
-          .encoding("UTF-8")
-          .type(MediaType.APPLICATION_JSON)
+          .type("application/json; charset=UTF-8")
           .build();
     } catch (Exception e) {
       // Don't log on the server, it can be tedious to see all the failed lookups.

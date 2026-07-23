@@ -1,0 +1,331 @@
+{
+  "themes": [
+    {
+      "shared": false,
+      "backgroundColor": {
+        "b": 255,
+        "r": 255,
+        "g": 255
+      },
+      "borderColor": {
+        "b": 240,
+        "r": 240,
+        "g": 240
+      },
+      "factsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "axisColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "description": "Default test theme scheme",
+      "verticalDimensionsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "titleFont": {
+        "fontName": "Arial",
+        "fontSize": "10",
+        "bold": true,
+        "italic": true
+      },
+      "colors": [
+        {
+          "b": 92,
+          "r": 0,
+          "g": 63
+        },
+        {
+          "b": 124,
+          "r": 47,
+          "g": 75
+        },
+        {
+          "b": 145,
+          "r": 102,
+          "g": 81
+        },
+        {
+          "b": 149,
+          "r": 160,
+          "g": 81
+        },
+        {
+          "b": 135,
+          "r": 212,
+          "g": 80
+        },
+        {
+          "b": 106,
+          "r": 249,
+          "g": 93
+        },
+        {
+          "b": 67,
+          "r": 255,
+          "g": 124
+        },
+        {
+          "b": 0,
+          "r": 255,
+          "g": 166
+        }
+      ],
+      "factsFont": {
+        "fontName": "Hack",
+        "fontSize": "12",
+        "bold": false,
+        "italic": false
+      },
+      "defaultColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "titleColor": {
+        "b": 200,
+        "r": 200,
+        "g": 200
+      },
+      "horizontalDimensionsFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": true,
+        "italic": false
+      },
+      "gridColor": {
+        "b": 200,
+        "r": 200,
+        "g": 200
+      },
+      "name": "Default",
+      "verticalDimensionsFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": true,
+        "italic": false
+      },
+      "horizontalDimensionsColor": {
+        "b": 0,
+        "r": 0,
+        "g": 0
+      },
+      "defaultFont": {
+        "fontName": "Arial",
+        "fontSize": "12",
+        "bold": false,
+        "italic": false
+      }
+    }
+  ],
+  "connectors": [],
+  "pages": [
+    {
+      "components": [
+        {
+          "layout": {
+            "top": {
+              "offset": 79,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 147,
+              "percentage": 0,
+              "alignment": "LEFT"
+            },
+            "bottom": {
+              "offset": 279,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "right": {
+              "offset": 467,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanGroupComponent": {
+              "border": false,
+              "columnSelection": [],
+              "distinctSelection": false,
+              "pluginId": "LeanGroupComponent",
+              "verticalMargin": 0,
+              "columnSorts": [],
+              "themeName": "Default",
+              "background": false,
+              "keyMappings": []
+            }
+          },
+          "name": "Group"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "alignment": "LEFT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanTableComponent": {
+              "border": false,
+              "columnSelection": [
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_id"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "product_name"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "category"
+                },
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "unit_price"
+                }
+              ],
+              "sourceConnectorName": "test_source.product",
+              "pluginId": "LeanTableComponent",
+              "verticalMargin": 2,
+              "themeName": "Default",
+              "gridLineWidth": "",
+              "headerOnEveryPage": true,
+              "evenHeights": true,
+              "background": false,
+              "header": true,
+              "horizontalMargin": 4
+            }
+          },
+          "name": "ProductsTable"
+        },
+        {
+          "layout": {
+            "top": {
+              "offset": 25,
+              "percentage": 0,
+              "alignment": "TOP"
+            },
+            "left": {
+              "offset": 0,
+              "percentage": 0,
+              "componentName": "ProductsTable",
+              "alignment": "RIGHT"
+            },
+            "bottom": {
+              "offset": -25,
+              "percentage": 0,
+              "alignment": "BOTTOM"
+            },
+            "right": {
+              "offset": 25,
+              "percentage": 0,
+              "alignment": "RIGHT"
+            }
+          },
+          "shared": false,
+          "component": {
+            "LeanBarChartComponent": {
+              "showingVerticalTotals": false,
+              "sourceConnectorName": "ProductCategoriesCount",
+              "showingAxisTicks": true,
+              "pluginId": "LeanBarChartComponent",
+              "dotSize": 6,
+              "showingLegend": false,
+              "showingFactValues": false,
+              "title": "Product categories",
+              "facts": [
+                {
+                  "headerHorizontalAlignment": "LEFT",
+                  "headerValue": "Count",
+                  "formatMask": "###,##0",
+                  "verticalAggregation": true,
+                  "horizontalAlignment": "LEFT",
+                  "horizontalAggregation": true,
+                  "width": 0,
+                  "aggregationMethod": "SUM",
+                  "headerVerticalAlignment": "TOP",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "count"
+                }
+              ],
+              "showingVerticalLabels": true,
+              "titleColor": {
+                "b": 0,
+                "r": 0,
+                "g": 0
+              },
+              "horizontalMargin": 0,
+              "border": false,
+              "showingHorizontalLabels": true,
+              "showingHorizontalTotals": false,
+              "verticalMargin": 0,
+              "titleFont": {
+                "fontName": "Arial",
+                "bold": true,
+                "italic": false
+              },
+              "widthPercentage": "",
+              "horizontalDimensions": [
+                {
+                  "horizontalAlignment": "LEFT",
+                  "width": 0,
+                  "headerValue": "Category",
+                  "verticalAlignment": "MIDDLE",
+                  "columnName": "category"
+                }
+              ],
+              "themeName": "Default",
+              "usingZeroBaseline": true,
+              "verticalDimensions": [],
+              "background": false
+            }
+          },
+          "transparency": "75",
+          "name": "Bar Chart"
+        }
+      ],
+      "leftMargin": 25,
+      "topMargin": 25,
+      "rightMargin": 25,
+      "footer": false,
+      "bottomMargin": 25,
+      "width": 1123,
+      "header": false,
+      "height": 794
+    }
+  ],
+  "parameterMappings": [],
+  "defaultThemeName": "Default",
+  "name": "products",
+  "description": "",
+  "interactions": []
+}

@@ -1,0 +1,54 @@
+{
+  "shared": false,
+  "connector": {
+    "ChainConnector": {
+      "connectors": [
+        {
+          "SelectionConnector": {
+            "columns": [
+              {
+                "horizontalAlignment": "LEFT",
+                "width": 0,
+                "headerValue": "",
+                "formatMask": "",
+                "verticalAlignment": "MIDDLE",
+                "columnName": "category"
+              }
+            ],
+            "pluginId": "SelectionConnector"
+          }
+        },
+        {
+          "SortConnector": {
+            "columns": [
+              {
+                "horizontalAlignment": "LEFT",
+                "width": 0,
+                "headerValue": "",
+                "formatMask": "",
+                "verticalAlignment": "MIDDLE",
+                "columnName": "category"
+              }
+            ],
+            "pluginId": "SortConnector",
+            "sortMethods": [
+              {
+                "customOrder": [],
+                "ascending": true,
+                "type": "STRING_ALPHA"
+              }
+            ]
+          }
+        },
+        {
+          "DistinctConnector": {
+            "pluginId": "DistinctConnector"
+          }
+        }
+      ],
+      "sourceConnectorName": "test_source.product",
+      "pluginId": "ChainConnector"
+    }
+  },
+  "name": "product-categories"
+}
