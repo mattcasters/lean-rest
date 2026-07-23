@@ -1065,6 +1065,190 @@ function loadComponentDiagnostics(componentName, cachedSummary, cachedDetail) {
 }
 
 /**
+ * Layout feedback: human attachment lines + resolved geometry/pages from the server.
+ * Also wires live per-side hints while editing LAYOUT_SIDE fields.
+ */
+function installLayoutFeedbackPanel(componentName) {
+    let editArea = document.getElementById("editArea");
+    if (!editArea || !componentName) {
+        return;
+    }
+    // Only when the form has layout attachment fields
+    if (!document.getElementById("leftEnabled")
+        && !document.getElementById("topEnabled")
+        && !document.getElementById("rightEnabled")
+        && !document.getElementById("bottomEnabled")) {
+        return;
+    }
+    let panel = document.getElementById("layoutResultPanel");
+    if (!panel) {
+        panel = document.createElement("div");
+        panel.id = "layoutResultPanel";
+        panel.className = "layout-result-panel";
+        // Insert after action bar or at top of form
+        let actionBar = editArea.querySelector(".form-action-bar");
+        if (actionBar && actionBar.nextSibling) {
+            editArea.insertBefore(panel, actionBar.nextSibling);
+        } else {
+            editArea.insertBefore(panel, editArea.firstChild);
+        }
+    }
+    panel.innerHTML = "<h4>Layout result</h4>"
+        + "<p class=\"editor-hint\" id=\"layoutResultStatus\">Loading layout info...</p>"
+        + "<ul id=\"layoutResultAttachments\" class=\"layout-result-list\"></ul>"
+        + "<p id=\"layoutResultGeometry\" class=\"layout-result-geo\"></p>"
+        + "<p id=\"layoutResultPages\" class=\"layout-result-pages\"></p>"
+        + "<ul id=\"layoutResultWarnings\" class=\"layout-result-warnings\"></ul>";
+
+    wireLayoutSideLiveHints();
+    refreshLayoutSideLiveHints();
+    loadComponentLayoutInfo(componentName);
+}
+
+function summarizeLayoutSideFromForm(side) {
+    let en = document.getElementById(side + "Enabled");
+    if (!en || !en.checked) {
+        return "";
+    }
+    let relEl = document.getElementById(side + "ObjectName");
+    let offEl = document.getElementById(side + "Offset");
+    let pctEl = document.getElementById(side + "Percentage");
+    let alEl = document.getElementById(side + "Alignment");
+    let rel = relEl && relEl.value ? relEl.value : "";
+    let edge = alEl && alEl.value ? alEl.value : "DEFAULT";
+    let off = offEl ? parseInt(offEl.value, 10) || 0 : 0;
+    let pct = pctEl ? parseInt(pctEl.value, 10) || 0 : 0;
+    let target = rel ? ("\"" + rel + "\"") : "page";
+    let s = capitalizeFirst(side) + ": " + String(edge).toLowerCase() + " edge of " + target;
+    if (off) {
+        s += (off > 0 ? " + " : " - ") + Math.abs(off) + " px";
+    }
+    if (pct) {
+        s += " + " + pct + "%";
+    }
+    return s;
+}
+
+function capitalizeFirst(s) {
+    if (!s) {
+        return s;
+    }
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function refreshLayoutSideLiveHints() {
+    ["left", "right", "top", "bottom"].forEach(function (side) {
+        let hint = document.getElementById(side + "LayoutHint");
+        if (!hint) {
+            return;
+        }
+        hint.textContent = summarizeLayoutSideFromForm(side);
+    });
+}
+
+function wireLayoutSideLiveHints() {
+    ["left", "right", "top", "bottom"].forEach(function (side) {
+        ["Enabled", "ObjectName", "Offset", "Percentage", "Alignment"].forEach(function (suffix) {
+            let el = document.getElementById(side + suffix);
+            if (el && !el._layoutHintWired) {
+                el._layoutHintWired = true;
+                el.addEventListener("change", refreshLayoutSideLiveHints);
+                el.addEventListener("input", refreshLayoutSideLiveHints);
+            }
+        });
+    });
+}
+
+function loadComponentLayoutInfo(componentName) {
+    if (!componentName || typeof presentationName === "undefined") {
+        return;
+    }
+    $.ajax({
+        url: API_BASE + "edit/presentation/" + encodeURIComponent(presentationName)
+            + "/components/" + encodeURIComponent(componentName) + "/layout-info",
+        type: "GET",
+        dataType: "json",
+        success: function (data) {
+            renderLayoutResultPanel(data);
+        },
+        error: function (xhr) {
+            let st = document.getElementById("layoutResultStatus");
+            if (st) {
+                st.textContent = "Could not load layout info: "
+                    + ((xhr && xhr.responseText) ? xhr.responseText : xhr.status);
+            }
+        }
+    });
+}
+
+function renderLayoutResultPanel(data) {
+    let st = document.getElementById("layoutResultStatus");
+    let attUl = document.getElementById("layoutResultAttachments");
+    let geoP = document.getElementById("layoutResultGeometry");
+    let pagesP = document.getElementById("layoutResultPages");
+    let warnUl = document.getElementById("layoutResultWarnings");
+    if (!st) {
+        return;
+    }
+    if (!data || data.ok === false) {
+        st.textContent = (data && data.warnings && data.warnings[0])
+            ? data.warnings[0]
+            : "Layout info unavailable";
+        return;
+    }
+    st.textContent = "After layout (saved attachments):";
+    if (attUl) {
+        attUl.innerHTML = "";
+        let atts = data.attachments || {};
+        ["left", "right", "top", "bottom"].forEach(function (side) {
+            if (!atts[side]) {
+                return;
+            }
+            let li = document.createElement("li");
+            li.textContent = atts[side].summary || side;
+            attUl.appendChild(li);
+        });
+        if (!attUl.children.length) {
+            let li = document.createElement("li");
+            li.className = "editor-hint";
+            li.textContent = "(no attachments enabled)";
+            attUl.appendChild(li);
+        }
+    }
+    if (geoP) {
+        let g = data.resolved;
+        if (g) {
+            geoP.textContent = "Resolved box: x=" + g.x + ", y=" + g.y
+                + ", width=" + g.width + ", height=" + g.height + " px";
+        } else {
+            geoP.textContent = "Resolved box: (none)";
+        }
+    }
+    if (pagesP) {
+        let pages = data.pages || [];
+        let pc = data.pageCount != null ? data.pageCount : "?";
+        if (!pages.length) {
+            pagesP.textContent = "Present on pages: none of " + pc;
+        } else if (pages.length === 1) {
+            pagesP.textContent = "Present on page " + (pages[0] + 1) + " of " + pc;
+        } else {
+            pagesP.textContent = "Present on "
+                + pages.length + " pages (first page " + (pages[0] + 1)
+                + ", last page " + (pages[pages.length - 1] + 1) + ") of " + pc;
+        }
+    }
+    if (warnUl) {
+        warnUl.innerHTML = "";
+        let warns = data.warnings || [];
+        for (let i = 0; i < warns.length; i++) {
+            let li = document.createElement("li");
+            li.textContent = warns[i];
+            warnUl.appendChild(li);
+        }
+    }
+}
+
+/**
  * @param url form HTML URL
  * @param panelOptions optional { withPreview, componentName, geometry, layoutError, layoutErrorDetail }
  */
@@ -1099,6 +1283,7 @@ function openEditArea(url, panelOptions) {
                         panelOptions.layoutError || null,
                         panelOptions.layoutErrorDetail || null
                     );
+                    installLayoutFeedbackPanel(panelOptions.componentName);
                 } else {
                     clearComponentErrorPanel();
                 }

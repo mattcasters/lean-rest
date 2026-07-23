@@ -235,7 +235,7 @@
               "alignment": "TOP"
             },
             "left": {
-              "offset": 0,
+              "offset": 20,
               "percentage": 0,
               "componentName": "ProductsTable",
               "alignment": "RIGHT"
@@ -246,7 +246,7 @@
               "alignment": "BOTTOM"
             },
             "right": {
-              "offset": 25,
+              "offset": -25,
               "percentage": 0,
               "alignment": "RIGHT"
             }
@@ -309,7 +309,6 @@
               "background": false
             }
           },
-          "transparency": "75",
           "name": "Bar Chart"
         }
       ],

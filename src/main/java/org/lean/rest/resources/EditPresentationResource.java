@@ -1151,6 +1151,213 @@ public class EditPresentationResource extends BaseResource {
   }
 
   /**
+   * Layout feedback for the property panel: attachment summaries, resolved geometry, and pages
+   * where the component appears after full presentation layout.
+   */
+  @GET
+  @Path("/{name}/components/{componentName}/layout-info")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response componentLayoutInfo(
+      @PathParam("name") String name, @PathParam("componentName") String componentName) {
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("componentName", componentName);
+    out.put("presentationName", name);
+    List<String> warnings = new ArrayList<>();
+    try {
+      LeanPresentation source = leanRest.loadPresentation(name);
+      if (source == null) {
+        out.put("ok", false);
+        out.put("warnings", List.of("Presentation not found: " + name));
+        return Response.ok(MAPPER.writeValueAsString(out))
+            .type("application/json; charset=UTF-8")
+            .build();
+      }
+      FoundComponent found = findComponentAnywhere(source, componentName);
+      if (found == null || found.component == null) {
+        out.put("ok", false);
+        out.put("warnings", List.of("Component not found: " + componentName));
+        return Response.ok(MAPPER.writeValueAsString(out))
+            .type("application/json; charset=UTF-8")
+            .build();
+      }
+      LeanComponent component = found.component;
+      LeanLayout layout = component.getLayout();
+      Map<String, Object> attachments = new LinkedHashMap<>();
+      for (String side : new String[] {"left", "right", "top", "bottom"}) {
+        LeanAttachment att =
+            layout == null
+                ? null
+                : switch (side) {
+                  case "left" -> layout.getLeft();
+                  case "right" -> layout.getRight();
+                  case "top" -> layout.getTop();
+                  case "bottom" -> layout.getBottom();
+                  default -> null;
+                };
+        if (att == null) {
+          continue;
+        }
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("enabled", true);
+        String rel = att.getComponentName();
+        a.put("relativeTo", rel != null && !rel.isBlank() ? rel : null);
+        a.put("alignment", att.getAlignment() != null ? att.getAlignment().name() : null);
+        a.put("offset", att.getOffset());
+        a.put("percentage", att.getPercentage());
+        a.put("summary", summarizeAttachment(side, att));
+        attachments.put(side, a);
+        if (rel != null && !rel.isBlank() && rel.equals(component.getName())) {
+          warnings.add(capitalize(side) + " attachment references this component itself.");
+        }
+      }
+      out.put("attachments", attachments);
+
+      // Prefer live rendering if present; otherwise layout once
+      IRendering existing = leanRest.findRendering(name, Collections.emptyList());
+      org.lean.presentation.layout.LeanLayoutResults layoutResults =
+          existing != null ? existing.getLayoutResults() : null;
+      if (layoutResults == null) {
+        var metadataProvider = leanRest.getMetadataProvider();
+        org.apache.hop.core.logging.LoggingObject loggingObject =
+            new org.apache.hop.core.logging.LoggingObject("layoutInfo");
+        org.lean.render.context.PresentationRenderContext renderContext =
+            new org.lean.render.context.PresentationRenderContext(source, metadataProvider);
+        layoutResults =
+            source.doLayout(loggingObject, renderContext, metadataProvider, Collections.emptyList());
+      }
+
+      List<Integer> pages = new ArrayList<>();
+      org.lean.core.LeanGeometry firstGeo = null;
+      if (layoutResults != null && layoutResults.getRenderPages() != null) {
+        List<LeanRenderPage> rps = layoutResults.getRenderPages();
+        out.put("pageCount", rps.size());
+        for (int i = 0; i < rps.size(); i++) {
+          LeanRenderPage rp = rps.get(i);
+          if (rp.getLayoutResults() == null) {
+            continue;
+          }
+          for (var lr : rp.getLayoutResults()) {
+            if (lr.getComponent() != null
+                && componentName.equals(lr.getComponent().getName())
+                && lr.getGeometry() != null) {
+              pages.add(i);
+              if (firstGeo == null) {
+                firstGeo = lr.getGeometry();
+              }
+              break;
+            }
+          }
+        }
+      }
+      out.put("pages", pages);
+      if (firstGeo != null) {
+        Map<String, Object> geo = new LinkedHashMap<>();
+        geo.put("x", firstGeo.getX());
+        geo.put("y", firstGeo.getY());
+        geo.put("width", firstGeo.getWidth());
+        geo.put("height", firstGeo.getHeight());
+        out.put("resolved", geo);
+        if (firstGeo.getWidth() <= 0 || firstGeo.getHeight() <= 0) {
+          warnings.add(
+              "Resolved size is "
+                  + firstGeo.getWidth()
+                  + "x"
+                  + firstGeo.getHeight()
+                  + " px (zero width/height usually means conflicting left/right or top/bottom).");
+        }
+      } else {
+        warnings.add("Component has no layout result on any page (check relative references).");
+      }
+      int pageCount = out.get("pageCount") instanceof Integer ? (Integer) out.get("pageCount") : 0;
+      if (pages.size() == 1 && pageCount > 1 && pages.get(0) == pageCount - 1) {
+        warnings.add(
+            "Component is only on the last page ("
+                + pageCount
+                + "). A multi-page table may have pushed it there — "
+                + "relative layout should place non-flowing siblings on page 1.");
+      } else if (!pages.isEmpty() && pages.get(0) > 0) {
+        warnings.add(
+            "Component first appears on page "
+                + (pages.get(0) + 1)
+                + " of "
+                + pageCount
+                + " (not page 1).");
+      }
+      // Relative targets that span many pages
+      for (Object attObj : attachments.values()) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> a = (Map<String, Object>) attObj;
+        Object rel = a.get("relativeTo");
+        if (rel instanceof String relName && !relName.isBlank() && layoutResults != null) {
+          int targetPages = 0;
+          for (LeanRenderPage rp : layoutResults.getRenderPages()) {
+            if (rp.getLayoutResults() == null) {
+              continue;
+            }
+            for (var lr : rp.getLayoutResults()) {
+              if (lr.getComponent() != null && relName.equals(lr.getComponent().getName())) {
+                targetPages++;
+                break;
+              }
+            }
+          }
+          if (targetPages > 1) {
+            warnings.add(
+                "Reference \""
+                    + relName
+                    + "\" spans "
+                    + targetPages
+                    + " pages. Relative layout uses the first part's geometry.");
+          }
+        }
+      }
+      out.put("warnings", warnings);
+      out.put("ok", true);
+      return Response.ok(MAPPER.writeValueAsString(out))
+          .type("application/json; charset=UTF-8")
+          .build();
+    } catch (Exception e) {
+      warnings.add("layout-info failed: " + e.getMessage());
+      out.put("ok", false);
+      out.put("warnings", warnings);
+      try {
+        return Response.ok(MAPPER.writeValueAsString(out))
+            .type("application/json; charset=UTF-8")
+            .build();
+      } catch (Exception e2) {
+        return getServerError("layout-info failed", e);
+      }
+    }
+  }
+
+  private static String capitalize(String s) {
+    if (s == null || s.isEmpty()) {
+      return s;
+    }
+    return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+  }
+
+  private static String summarizeAttachment(String side, LeanAttachment att) {
+    if (att == null) {
+      return capitalize(side) + ": (not set)";
+    }
+    String edge = att.getAlignment() != null ? att.getAlignment().name().toLowerCase() : "default";
+    String target =
+        att.getComponentName() != null && !att.getComponentName().isBlank()
+            ? "\"" + att.getComponentName() + "\""
+            : "page";
+    StringBuilder sb = new StringBuilder();
+    sb.append(capitalize(side)).append(": ").append(edge).append(" edge of ").append(target);
+    if (att.getOffset() != 0) {
+      sb.append(att.getOffset() > 0 ? " + " : " - ").append(Math.abs(att.getOffset())).append(" px");
+    }
+    if (att.getPercentage() != 0) {
+      sb.append(" + ").append(att.getPercentage()).append("%");
+    }
+    return sb.toString();
+  }
+
+  /**
    * Diagnose layout/render for a single component: re-runs isolated layout and returns any error
    * with full cause chain (for the property-panel error box). Always 200 with JSON.
    */

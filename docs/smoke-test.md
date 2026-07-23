@@ -125,6 +125,16 @@ curl -sS "$BASE/metadata/connectors/summary/" | head -c 300; echo
 
 **UI polish checks (manual):** edit mode → connectors → open a **Sort** / **Select** / **Chain** with a source → changing **Source connector** should immediately show the **Input** pane with sample rows; **Apply** refreshes output; sample-size dropdown limits rows.
 
+### Relative layout (multi-page tables)
+
+**Bug fixed:** siblings of multi-page tables (e.g. `products` / **Bar Chart** left = right of **ProductsTable**) were laid out only on the **last** overflow page. They now use the table’s **first-part** geometry and place on **page 1**.
+
+Manual check:
+
+1. Open `products` in edit mode → page 1 should show **ProductsTable** and **Bar Chart** to its right (`x ≈ table.right`).
+2. Open Bar Chart properties → **Layout result** panel shows resolved box, pages, attachment summaries, and multi-page reference hints.
+3. `combo-test` still shows Crosstab + charts on a single page.
+
 ### Presentation properties (interactions + parameter mappings)
 
 Chrome: in **edit** and **view**, the presentation name appears **top-right** of the toolbar strip. In edit mode it is a link (underline on hover); click opens the properties side panel.

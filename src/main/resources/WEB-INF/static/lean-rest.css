@@ -1537,6 +1537,47 @@ body.property-panel-open .presentation-title-bar {
     font-weight: 500;
 }
 
+/* ── Layout result feedback (component properties) ─────── */
+.layout-result-panel {
+    margin: 8px 0 14px 0;
+    padding: 10px 12px;
+    background: #eef2fa;
+    border: 1px solid #8a9bc0;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.layout-result-panel h4 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+}
+
+.layout-result-list {
+    margin: 4px 0 8px 16px;
+    padding: 0;
+}
+
+.layout-result-geo,
+.layout-result-pages {
+    margin: 2px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+}
+
+.layout-result-warnings {
+    margin: 6px 0 0 16px;
+    padding: 0;
+    color: #8a4b08;
+}
+
+.layout-result-warnings li {
+    margin: 2px 0;
+}
+
+.layout-side-hint {
+    min-height: 1.2em;
+}
+
 .pres-prop-card-list {
     list-style: none;
     margin: 0;
